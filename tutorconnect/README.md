@@ -12,6 +12,12 @@ React, TypeScript, Supabase and Paystack prototype.
 
 The interface can be previewed without Supabase credentials, but authentication and data-backed screens require a configured Supabase project. For payments, deploy `supabase/functions/payments` and configure the Paystack secret and webhook in test mode.
 
+## Netlify deployment
+
+The GitHub repository keeps the app in the `tutorconnect` subdirectory. The repository-root `netlify.toml` configures Netlify to build from that directory with `npm run build` and publish `dist`. The `public/_redirects` file sends direct requests for app paths back to the SPA entry point.
+
+Connect the repository in Netlify and deploy the branch containing these files. If configuring build settings in the Netlify UI, use `tutorconnect` as the base directory, `npm run build` as the build command, and `dist` as the publish directory.
+
 ## Tutor plans and verification
 
 Approved tutors can purchase a monthly or semester listing from the tutor dashboard. The blue TutorConnect check appears only when the tutor application is approved and `premium_until` is still in the future. The plan is activated by the server only after Paystack verifies the transaction; the browser cannot grant the badge or unlock contacts by itself. Configure the Paystack **secret test key** as the `PAYSTACK_SECRET` Supabase Edge Function secret and deploy `supabase/functions/payments` before testing checkout. Never put the secret key in a `VITE_` variable or browser code.

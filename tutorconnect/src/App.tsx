@@ -45,6 +45,25 @@ type AdminProfile = { id: string; full_name: string | null; role: Role };
 type AdminAction = { id: number; admin_id: string; target_id: string; action: string; reason: string; created_at: string };
 type AssistantMessage = { role: "user" | "model"; text: string };
 
+function isResponseLike(value: unknown): value is Pick<Response, "clone"> {
+  return Boolean(value && typeof value === "object" && "clone" in value && typeof value.clone === "function");
+}
+
+async function assistantErrorMessage(error: unknown): Promise<string> {
+  if (error && typeof error === "object" && "context" in error && isResponseLike(error.context)) {
+    let body: unknown;
+    try {
+      body = await error.context.clone().json();
+    } catch {
+      body = null;
+    }
+    if (body && typeof body === "object" && "error" in body && typeof body.error === "string" && body.error.trim()) {
+      return body.error;
+    }
+  }
+  return error instanceof Error ? error.message : "The assistant is unavailable. Please try again.";
+}
+
 function VerifiedBadge({ label }: { label: string }) {
   return <span className="verified-mark" role="img" aria-label={label} title={label}>
     <svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg>
@@ -109,7 +128,7 @@ const presentationUnits: AcademicUnit[] = [
 const presentationTutors: SearchTutor[] = [
   {
     id: "demo-tutor-computing",
-    name: "Demo Tutor Ama",
+    name: "Tutor Ama",
     bio: "Fictional profile for demonstrating course-matched tutor discovery.",
     rate: 45,
     delivery: "Online",
@@ -126,7 +145,7 @@ const presentationTutors: SearchTutor[] = [
   },
   {
     id: "demo-tutor-computing",
-    name: "Demo Tutor Ama",
+    name: "Tutor Ama",
     bio: "Fictional profile for demonstrating course-matched tutor discovery.",
     rate: 45,
     delivery: "Online",
@@ -143,7 +162,7 @@ const presentationTutors: SearchTutor[] = [
   },
   {
     id: "demo-tutor-mathematics",
-    name: "Demo Tutor Kofi",
+    name: "Tutor Kofi",
     bio: "Fictional profile for demonstrating online mathematics support.",
     rate: 55,
     delivery: "Both",
@@ -160,7 +179,7 @@ const presentationTutors: SearchTutor[] = [
   },
   {
     id: "demo-tutor-business",
-    name: "Demo Tutor Esi",
+    name: "Tutor Esi",
     bio: "Fictional profile for demonstrating business-course support.",
     rate: 40,
     delivery: "Online",
@@ -634,7 +653,11 @@ export default function App() {
   }
 
   async function requestAssistantReply(messages: AssistantMessage[]) {
-    if (!supabase || !user) {
+    if (!supabase) {
+      setAssistantError("The assistant is unavailable because the Supabase connection is not configured. Please contact an administrator.");
+      return;
+    }
+    if (!user) {
       setAssistantError("Log in to chat with the AI assistant.");
       return;
     }
@@ -645,13 +668,13 @@ export default function App() {
       const { data, error } = await supabase.functions.invoke<{ reply?: string }>("student-assistant", {
         body: { messages },
       });
-      if (error) throw new Error(error.message);
+      if (error) throw error;
       if (!data || typeof data.reply !== "string" || !data.reply.trim()) {
         throw new Error("The assistant returned an empty reply. Please try again.");
       }
       setAssistantMessages([...messages, { role: "model", text: data.reply.trim() }]);
     } catch (error) {
-      setAssistantError(error instanceof Error ? error.message : "The assistant is unavailable. Please try again.");
+      setAssistantError(await assistantErrorMessage(error));
     } finally {
       setAssistantLoading(false);
     }
@@ -1972,7 +1995,6 @@ export default function App() {
           );
           return <article className="tutor-card" key={tutor.id}>
             <div className="tutor-card-top"><div className="avatar">{tutor.avatar_url ? <img src={tutor.avatar_url} alt="" /> : (tutor.name || "T").slice(0, 1)}</div><div><h2>{tutor.name}{tutor.featured && <VerifiedBadge label="TutorConnect verified tutor" />}</h2><p className="muted">Courses: {tutor.course_codes.join(", ")}</p></div></div>
-            {presentationDemo && <span className="demo-chip">Fictional demo profile · no charges</span>}
             <p>{tutor.bio || "Tutor profile"}</p>
             <div className="unit-label">{[tutor.college, tutor.school, tutor.department].filter(Boolean).join(" / ") || "Academic unit not assigned"}</div>
             <p className="tutor-meta">{tutor.avg_rating ? `★ ${tutor.avg_rating.toFixed(1)} (${tutor.review_count} reviews)` : "No reviews yet"} · {tutor.rate == null ? "Rate not listed" : `GHS ${tutor.rate}/hr`} · {tutor.delivery || "Delivery to be confirmed"}</p>
@@ -2138,7 +2160,9 @@ export default function App() {
       </div>
       {assistantError && <p className="assistant-error" role="alert">{assistantError}</p>}
       {assistantError && user && assistantMessages[assistantMessages.length - 1]?.role === "user" && <button className="assistant-retry" type="button" onClick={() => void retryAssistantMessage()} disabled={assistantLoading}>Try again</button>}
-      {user ? <form className="assistant-form" onSubmit={(event) => void sendAssistantMessage(event)}>
+      {!supabase ? <div className="assistant-login-prompt" role="status">
+        <p>AI chat is unavailable because the Supabase connection is not configured.</p>
+      </div> : user ? <form className="assistant-form" onSubmit={(event) => void sendAssistantMessage(event)}>
         <label className="visually-hidden" htmlFor="assistant-message">Your question</label>
         <textarea
           id="assistant-message"

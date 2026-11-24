@@ -4,19 +4,22 @@ test("presentation mode shows fictional tutor cards without payment actions and 
   await page.goto("/?demo=1");
 
   await expect(page.getByRole("heading", { name: "Explore sample tutor profiles" })).toBeVisible();
-  await expect(page.getByText("Fictional demo profile · no charges").first()).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Presentation demo notice" })).toContainText("Profiles and programme entries are fictional.");
+  await expect(page.getByText("Fictional demo profile · no charges")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Contact unlock disabled in demo" })).toHaveCount(3);
   await expect(page.getByRole("button", { name: "Create a real account" })).toBeVisible();
 
   await page.getByLabel("Course code or title").fill("CS101");
   await page.getByRole("button", { name: "Search tutors" }).click();
   await expect(page.getByRole("status").filter({ hasText: "1 fictional demo profile shown" })).toBeVisible();
-  const tutorCard = page.locator(".tutor-card").filter({ hasText: "Demo Tutor Ama" });
+  const tutorCard = page.locator(".tutor-card").filter({ hasText: "Tutor Ama" });
   await expect(tutorCard).toBeVisible();
+  await expect(tutorCard.getByRole("heading", { name: "Tutor Ama" })).toBeVisible();
+  await expect(tutorCard.getByRole("heading", { name: /Demo Tutor/ })).toHaveCount(0);
   await expect(tutorCard).toContainText("Courses: CS101");
   await expect(tutorCard.getByRole("link", { name: /CS50 Week 0/ })).toHaveAttribute("href", "https://youtu.be/2WtPyqwTLKM");
   await expect(tutorCard.getByRole("link", { name: /CS50P/ })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Demo Tutor Kofi" })).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tutor Kofi" })).not.toBeVisible();
 
   await page.getByRole("button", { name: "Create a real account" }).click();
   await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
@@ -29,7 +32,7 @@ test("one tutor profile can show multiple subjects with resources matched to eac
   await page.getByRole("button", { name: "Search tutors" }).click();
 
   await expect(page.getByRole("status").filter({ hasText: "1 fictional demo profile shown" })).toBeVisible();
-  const tutorCard = page.locator(".tutor-card").filter({ hasText: "Demo Tutor Ama" });
+  const tutorCard = page.locator(".tutor-card").filter({ hasText: "Tutor Ama" });
   await expect(tutorCard).toHaveCount(1);
   await expect(tutorCard).toContainText("Courses: CS101, CS102");
   await expect(tutorCard.getByText("CS101 · Course resource")).toBeVisible();

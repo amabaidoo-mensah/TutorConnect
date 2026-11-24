@@ -110,10 +110,13 @@ Deno.serve(async (req) => {
           })),
           generationConfig: { maxOutputTokens: 700, temperature: 0.6 },
         }),
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(60000),
       },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      return response({ error: "The AI response took too long. Please try again with a shorter question." }, 504);
+    }
     return response({ error: "The AI service could not be reached. Please try again or contact an administrator." }, 502);
   }
 

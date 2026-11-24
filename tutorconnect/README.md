@@ -40,7 +40,7 @@ To enable AI chat:
 2. Create a Gemini API key in Google AI Studio and add it as the `GEMINI_API_KEY` Edge Function secret in the Supabase project settings. Do not commit the key or share it in chat.
 3. Deploy the function with `supabase functions deploy student-assistant`.
 
-The function enforces per-user request limits and bounds message size and response length. Set Netlify's `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to the same Supabase project and trigger a new deploy after changing them; these values are compiled into the static app at build time. Gemini's free-tier availability and quotas are controlled by Google and can change; when the provider quota is reached, the assistant displays the function's error and students can still contact the administrators directly.
+The function enforces per-user request limits and bounds message size and response length. Gemini requests may take up to 60 seconds; timeouts return a specific retry suggestion instead of a generic gateway error. Set Netlify's `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to the same Supabase project and trigger a new deploy after changing them; these values are compiled into the static app at build time. Gemini's free-tier availability and quotas are controlled by Google and can change; when the provider quota is reached, the assistant displays the function's error and students can still contact the administrators directly.
 
 ## Validation
 

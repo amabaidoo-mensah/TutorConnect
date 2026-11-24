@@ -25,8 +25,12 @@ type SearchTutor = {
   avatar_path: string | null;
   avatar_url: string | null;
 };
-type TutorResource = { id: number; tutor_id: string; course_id: number | null; resource_type: "teaching_video" | "course_resource" | "past_questions"; title: string; url: string | null; storage_path: string | null; resource_payment_id: string | null; signed_url?: string | null; description: string | null; created_at: string };
+type GroupedSearchTutor = Omit<SearchTutor, "course_code"> & { course_codes: string[] };
+type TutorResource = { id: number; tutor_id: string; course_id: number | null; course_code?: string | null; resource_type: "teaching_video" | "course_resource" | "past_questions"; title: string; url: string | null; storage_path: string | null; resource_payment_id: string | null; signed_url?: string | null; description: string | null; created_at: string };
+type TutorResourceWithCourse = TutorResource & { courses: { code: string } | { code: string }[] | null };
 type CourseLearningResource = { id: number; course_id: number; resource_type: "video" | "notes" | "open_textbook" | "practice" | "past_questions"; title: string; url: string; source_name: string; description: string | null; license_name: string | null; license_url: string | null };
+type SubjectLearningResource = { title: string; kind: string; url: string; source: string; description: string; license?: string; license_url?: string };
+type SubjectLearningResourceGroup = { subject: string; resources: SubjectLearningResource[] };
 type Contact = { tutor_id: string; phone: string | null; email: string | null };
 type Review = { id: number; tutor_id: string; student_id: string; rating: number; comment: string | null; status: string; created_at: string };
 type Report = { id: number; tutor_id: string; reporter_id: string; category: string; description: string; status: string; resolution: string | null; created_at: string };
@@ -121,6 +125,23 @@ const presentationTutors: SearchTutor[] = [
     avatar_url: null,
   },
   {
+    id: "demo-tutor-computing",
+    name: "Demo Tutor Ama",
+    bio: "Fictional profile for demonstrating course-matched tutor discovery.",
+    rate: 45,
+    delivery: "Online",
+    course_code: "CS102",
+    avg_rating: 4.8,
+    review_count: 12,
+    featured: false,
+    department_id: -3,
+    department: "Computer Science and Information Technology",
+    school: "School of Physical Sciences",
+    college: "College of Science and Technology",
+    avatar_path: null,
+    avatar_url: null,
+  },
+  {
     id: "demo-tutor-mathematics",
     name: "Demo Tutor Kofi",
     bio: "Fictional profile for demonstrating online mathematics support.",
@@ -155,6 +176,60 @@ const presentationTutors: SearchTutor[] = [
     avatar_url: null,
   },
 ];
+const presentationTutorResources: TutorResource[] = [
+  {
+    id: -1,
+    tutor_id: "demo-tutor-computing",
+    course_id: -2,
+    course_code: "CS101",
+    resource_type: "course_resource",
+    title: "CS50 Week 0: Scratch and computational thinking",
+    url: "https://youtu.be/2WtPyqwTLKM",
+    storage_path: null,
+    resource_payment_id: null,
+    description: "External Harvard CS50 lecture, not created by this fictional tutor.",
+    created_at: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: -2,
+    tutor_id: "demo-tutor-computing",
+    course_id: -3,
+    course_code: "CS102",
+    resource_type: "course_resource",
+    title: "CS50P: Programming with Python video course",
+    url: "https://www.youtube.com/playlist?list=PLhQjrBD2T3817j24-GogXmWqO5Q5vYy0V",
+    storage_path: null,
+    resource_payment_id: null,
+    description: "External Harvard CS50 playlist, not created by this fictional tutor.",
+    created_at: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: -3,
+    tutor_id: "demo-tutor-mathematics",
+    course_id: -1,
+    course_code: "MATH120",
+    resource_type: "course_resource",
+    title: "MIT 18.06 Linear Algebra lecture playlist",
+    url: "https://www.youtube.com/playlist?list=PLE7DDD91010BC51F8",
+    storage_path: null,
+    resource_payment_id: null,
+    description: "External MIT OpenCourseWare lectures, not created by this fictional tutor.",
+    created_at: "2026-01-01T00:00:00Z",
+  },
+  {
+    id: -4,
+    tutor_id: "demo-tutor-business",
+    course_id: -4,
+    course_code: "BUS204",
+    resource_type: "course_resource",
+    title: "OpenStax: Principles of Management",
+    url: "https://openstax.org/books/principles-management/pages/1-introduction",
+    storage_path: null,
+    resource_payment_id: null,
+    description: "External free-to-read OpenStax textbook, not created by this fictional tutor.",
+    created_at: "2026-01-01T00:00:00Z",
+  },
+];
 const presentationResources: Array<Course & { resources: CourseLearningResource[] }> = [
   {
     id: -1,
@@ -170,9 +245,19 @@ const presentationResources: Array<Course & { resources: CourseLearningResource[
       title: "MIT OpenCourseWare: Linear Algebra",
       url: "https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/",
       source_name: "MIT OpenCourseWare (external example)",
-      description: "Public external study material used to illustrate the library; not a TutorConnect tutor lesson.",
-      license_name: null,
-      license_url: null,
+      description: "Free course materials include lecture videos, problem sets and exams; not a TutorConnect tutor lesson.",
+      license_name: "CC BY-NC-SA 4.0 (check individual asset credits)",
+      license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    }, {
+      id: -4,
+      course_id: -1,
+      resource_type: "video",
+      title: "MIT 18.06 Linear Algebra lectures on YouTube",
+      url: "https://www.youtube.com/playlist?list=PLE7DDD91010BC51F8",
+      source_name: "MIT OpenCourseWare",
+      description: "MIT professor Gilbert Strang's Spring 2005 lecture playlist.",
+      license_name: "CC BY-NC-SA 4.0 (check individual asset credits)",
+      license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
     }],
   },
   {
@@ -192,7 +277,173 @@ const presentationResources: Array<Course & { resources: CourseLearningResource[
       description: "Public external study material used to illustrate the library; not a TutorConnect tutor lesson.",
       license_name: null,
       license_url: null,
+    }, {
+      id: -5,
+      course_id: -2,
+      resource_type: "video",
+      title: "CS50 Week 0: Scratch and computational thinking",
+      url: "https://youtu.be/2WtPyqwTLKM",
+      source_name: "Harvard CS50",
+      description: "Official introductory lecture video; free course materials are available on the CS50 site.",
+      license_name: null,
+      license_url: null,
     }],
+  },
+  {
+    id: -3,
+    institution_id: presentationInstitution.id,
+    code: "CS102",
+    title: "Programming with Python (demo course)",
+    academic_unit_id: -3,
+    source_url: null,
+    resources: [{
+      id: -6,
+      course_id: -3,
+      resource_type: "open_textbook",
+      title: "Harvard CS50P: Introduction to Programming with Python",
+      url: "https://cs50.harvard.edu/python/",
+      source_name: "Harvard CS50 (external example)",
+      description: "Free self-paced course materials; not a TutorConnect tutor lesson.",
+      license_name: null,
+      license_url: null,
+    }, {
+      id: -7,
+      course_id: -3,
+      resource_type: "video",
+      title: "CS50P Python programming video playlist",
+      url: "https://www.youtube.com/playlist?list=PLhQjrBD2T3817j24-GogXmWqO5Q5vYy0V",
+      source_name: "Harvard CS50",
+      description: "Official CS50P lecture playlist on YouTube.",
+      license_name: null,
+      license_url: null,
+    }],
+  },
+  {
+    id: -4,
+    institution_id: presentationInstitution.id,
+    code: "BUS204",
+    title: "Business and Management (demo course)",
+    academic_unit_id: -5,
+    source_url: null,
+    resources: [{
+      id: -8,
+      course_id: -4,
+      resource_type: "open_textbook",
+      title: "OpenStax: Principles of Management",
+      url: "https://openstax.org/books/principles-management/pages/1-introduction",
+      source_name: "OpenStax",
+      description: "Free-to-read management textbook. The book is licensed for non-commercial sharing and adaptation.",
+      license_name: "CC BY-NC-SA 4.0",
+      license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    }, {
+      id: -9,
+      course_id: -4,
+      resource_type: "notes",
+      title: "MIT OpenCourseWare: Financial and Managerial Accounting",
+      url: "https://ocw.mit.edu/courses/15-501-introduction-to-financial-and-managerial-accounting-spring-2004/",
+      source_name: "MIT OpenCourseWare",
+      description: "Course notes, exams and problem sets for undergraduate accounting.",
+      license_name: "CC BY-NC-SA 4.0 (check individual asset credits)",
+      license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    }, {
+      id: -10,
+      course_id: -4,
+      resource_type: "video",
+      title: "MIT OpenCourseWare business lecture videos on YouTube",
+      url: "https://www.youtube.com/mitocw",
+      source_name: "MIT OpenCourseWare",
+      description: "Official video channel; use the course guide above to find the matching topic.",
+      license_name: null,
+      license_url: null,
+    }],
+  },
+];
+const curatedSubjectResources: SubjectLearningResourceGroup[] = [
+  {
+    subject: "Mathematics",
+    resources: [
+      {
+        title: "MIT OpenCourseWare: Linear Algebra (18.06)",
+        kind: "Free course materials",
+        url: "https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/",
+        source: "MIT OpenCourseWare",
+        description: "Lecture videos, problem sets, exams and solutions covering matrix theory and linear algebra.",
+        license: "CC BY-NC-SA 4.0 (check individual asset credits)",
+        license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+      },
+      {
+        title: "MIT 18.06 Linear Algebra lectures (YouTube)",
+        kind: "YouTube playlist",
+        url: "https://www.youtube.com/playlist?list=PLE7DDD91010BC51F8",
+        source: "MIT OpenCourseWare",
+        description: "Gilbert Strang's Spring 2005 lecture playlist.",
+        license: "CC BY-NC-SA 4.0 (check individual asset credits)",
+        license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+      },
+      {
+        title: "3Blue1Brown: Essence of Calculus",
+        kind: "YouTube playlist",
+        url: "https://www.youtube.com/playlist?list=PLZHQObOWTQDMsr9K-rj53DwVRMYO3t5Yr",
+        source: "3Blue1Brown",
+        description: "Visual intuition for core calculus concepts.",
+      },
+    ],
+  },
+  {
+    subject: "Computer Science",
+    resources: [
+      {
+        title: "Harvard CS50x: Introduction to Computer Science",
+        kind: "Free self-paced course",
+        url: "https://cs50.harvard.edu/x/",
+        source: "Harvard CS50",
+        description: "Free course covering algorithms, programming, data structures, SQL and web development.",
+      },
+      {
+        title: "CS50 Week 0: Scratch and computational thinking",
+        kind: "YouTube lecture",
+        url: "https://youtu.be/2WtPyqwTLKM",
+        source: "Harvard CS50",
+        description: "Official introductory lecture; course notes and exercises are linked from CS50x.",
+      },
+      {
+        title: "CS50P: Introduction to Programming with Python",
+        kind: "YouTube playlist",
+        url: "https://www.youtube.com/playlist?list=PLhQjrBD2T3817j24-GogXmWqO5Q5vYy0V",
+        source: "Harvard CS50",
+        description: "Official lecture playlist for the free Python programming course.",
+      },
+    ],
+  },
+  {
+    subject: "Business and Management",
+    resources: [
+      {
+        title: "OpenStax: Principles of Management",
+        kind: "Free-to-read textbook",
+        url: "https://openstax.org/books/principles-management/pages/1-introduction",
+        source: "OpenStax, Rice University",
+        description: "Introductory management text. Its CC BY-NC-SA license limits reuse to non-commercial sharing and adaptation.",
+        license: "CC BY-NC-SA 4.0",
+        license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+      },
+      {
+        title: "MIT OpenCourseWare: Financial and Managerial Accounting",
+        kind: "Free course materials",
+        url: "https://ocw.mit.edu/courses/15-501-introduction-to-financial-and-managerial-accounting-spring-2004/",
+        source: "MIT OpenCourseWare",
+        description: "Undergraduate accounting course with lecture notes, problem sets and exams.",
+        license: "CC BY-NC-SA 4.0 (check individual asset credits)",
+        license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+      },
+      {
+        title: "MIT OpenCourseWare business lecture videos",
+        kind: "YouTube channel",
+        url: "https://www.youtube.com/mitocw",
+        source: "MIT OpenCourseWare",
+        description: "Official video channel; use the accounting course guide above to find the matching subject material.",
+      },
+    ],
   },
 ];
 const presentationProgrammes: AcademicProgramme[] = [
@@ -771,7 +1022,13 @@ export default function App() {
       );
       setResults(matchingTutors);
       setContacts({});
-      setResourcesByTutor({});
+      const matchingResources = presentationTutorResources.filter((resource) =>
+        matchingTutors.some((tutor) => tutor.id === resource.tutor_id && tutor.course_code === resource.course_code),
+      );
+      setResourcesByTutor(matchingResources.reduce<Record<string, TutorResource[]>>((grouped, resource) => {
+        grouped[resource.tutor_id] = [...(grouped[resource.tutor_id] ?? []), resource];
+        return grouped;
+      }, {}));
       setRecentlyUnlockedContact(null);
       setHasSearched(true);
       setNotice("Presentation search uses fictional profiles. Contact unlocks and payments are disabled.");
@@ -808,17 +1065,21 @@ export default function App() {
         return { ...row, avatar_url: photo.signedUrl };
       }));
       setResults(rows);
-      const ids = rows.map((row) => row.id);
+      const ids = [...new Set(rows.map((row) => row.id))];
       if (ids.length) {
         const { data: resources, error: resourceError } = await client.from("tutor_resources")
-            .select("id,tutor_id,course_id,resource_type,title,url,storage_path,resource_payment_id,description,created_at")
+            .select("id,tutor_id,course_id,resource_type,title,url,storage_path,resource_payment_id,description,created_at,courses(code)")
           .in("tutor_id", ids).eq("is_public", true).order("created_at", { ascending: false });
         if (resourceError) {
           setNotice(resourceError.message);
           setResourcesByTutor({});
           } else {
             try {
-              const signedResources = await signTutorResourceFiles(resources ?? []);
+              const resourceRows: TutorResource[] = ((resources ?? []) as TutorResourceWithCourse[]).map((resource) => {
+                const course = Array.isArray(resource.courses) ? resource.courses[0] : resource.courses;
+                return { ...resource, course_code: course?.code ?? null };
+              });
+              const signedResources = await signTutorResourceFiles(resourceRows);
               setResourcesByTutor(signedResources.reduce<Record<string, TutorResource[]>>((grouped, item) => {
                 grouped[item.tutor_id] = [...(grouped[item.tutor_id] ?? []), item];
                 return grouped;
@@ -1448,6 +1709,20 @@ export default function App() {
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [adminCourses, units]);
 
+  const groupedTutors = useMemo<GroupedSearchTutor[]>(() => {
+    const tutors = new Map<string, GroupedSearchTutor>();
+    for (const result of results) {
+      const existing = tutors.get(result.id);
+      if (existing) {
+        if (!existing.course_codes.includes(result.course_code)) existing.course_codes.push(result.course_code);
+        continue;
+      }
+      const { course_code, ...tutor } = result;
+      tutors.set(result.id, { ...tutor, course_codes: [course_code] });
+    }
+    return [...tutors.values()];
+  }, [results]);
+
   const filteredProgrammes = useMemo(() => {
     const search = programmeQuery.trim().toLowerCase();
     return academicProgrammes.filter((programme) =>
@@ -1476,6 +1751,18 @@ export default function App() {
       !search || `${course.code} ${course.title} ${unitPath(course.academic_unit_id, units)}`.toLowerCase().includes(search),
     );
   }, [courseResourceCourses, courseResourceQuery, units]);
+
+  const filteredCuratedSubjectResources = useMemo(() => {
+    const search = courseResourceQuery.trim().toLowerCase();
+    return curatedSubjectResources
+      .map((group) => ({
+        ...group,
+        resources: group.resources.filter((resource) =>
+          !search || `${group.subject} ${resource.title} ${resource.source} ${resource.description}`.toLowerCase().includes(search),
+        ),
+      }))
+      .filter((group) => group.resources.length > 0);
+  }, [courseResourceQuery]);
 
   const unresolvedReports = adminReports.filter((item) => item.status !== "resolved").length;
   const pendingTutors = adminTutors.filter((item) => item.status === "pending").length;
@@ -1520,17 +1807,31 @@ export default function App() {
         <button className="back-to-login" type="button" onClick={() => setAuthMode("login")}>Cancel and return to your account</button>
       </section>
     </main> : section === "resources" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "OPEN LEARNING LIBRARY"}</p><h1>Courses & learning resources</h1><p className="muted">{presentationDemo ? "See a sample of the course-matched learning library." : "Explore verified course units and freely accessible study materials before contacting a tutor."}</p></section>
+      <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "OPEN LEARNING LIBRARY"}</p><h1>Courses & learning resources</h1><p className="muted">{presentationDemo ? "Explore curated subject resources and sample course-matched materials." : "Explore reputable public study materials by subject, plus course-specific resources and tutor-shared links."}</p></section>
       <div className="programme-controls resource-library-controls">
         <label>Institution<select value={institutionId} onChange={(event) => { setInstitutionId(Number(event.target.value)); setUnitId(""); }}>
           <option value="">Choose institution</option>{institutions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select></label>
-        <label>Search courses<input value={courseResourceQuery} onChange={(event) => setCourseResourceQuery(event.target.value)} placeholder="Course code, title or department" /></label>
+        <label>Search courses or subjects<input value={courseResourceQuery} onChange={(event) => setCourseResourceQuery(event.target.value)} placeholder="Course code, subject, title or source" /></label>
         <button className="button button-outline" onClick={() => setCourseResourceReload((value) => value + 1)} disabled={courseResourcesLoading}>Refresh resources</button>
       </div>
       <p className="source-note">{presentationDemo
-        ? "These fictional course entries and external learning links are sample content for the presentation; they are not an official university catalogue or tutor endorsements."
-        : "Course entries link to official university sources. Learning materials are independent resources, not lessons by or endorsements from named university lecturers. Past papers are included only when an official, public source is verified; practice sets are labeled separately."}</p>
+        ? "The demo course entries are fictional. Curated third-party resources are real external learning materials; none are represented as UCC course records or as lessons created by demo tutors."
+        : "Curated materials link to their publishers and are not UCC course records, tutor lessons or endorsements. Course-linked items use verified university sources; past papers appear only when an official public source is confirmed."}</p>
+      <section className="course-resource-groups" aria-label="Curated learning resources by subject">
+        <div><p className="eyebrow">CURATED OPEN WEB RESOURCES</p><h2>Free learning resources by subject</h2><p className="muted">These external links are selected for the demo subjects. Follow each publisher’s terms; course fit may differ by syllabus.</p></div>
+        {filteredCuratedSubjectResources.length ? filteredCuratedSubjectResources.map((group) => <article className="course-resource-card" key={group.subject}>
+          <p className="eyebrow">SUBJECT</p><h2>{group.subject}</h2>
+          <div className="course-resource-list">{group.resources.map((resource) => <article className="course-resource-item" key={resource.url}>
+            <span className="resource-type">{resource.kind}</span>
+            <a className="course-resource-title" href={resource.url} target="_blank" rel="noreferrer"><b>{resource.title}</b></a>
+            <small>Source: {resource.source}</small>
+            <small>{resource.description}</small>
+            {resource.license && <small>License: <a href={resource.license_url} target="_blank" rel="noreferrer">{resource.license}</a></small>}
+          </article>)}</div>
+        </article>) : <p className="muted">No curated subject resources match this search.</p>}
+      </section>
+      <h2>Verified course-specific resources</h2>
       {!supabase && !presentationDemo ? <div className="empty-state"><h2>Connect Supabase to load course resources</h2><p>Configure the project URL and publishable key, then run the database migrations.</p></div>
         : courseResourcesLoading ? <div className="empty-state" role="status" aria-live="polite"><h2>Loading course resources</h2><p>Checking the verified course catalogue.</p></div>
         : courseResourcesError ? <div className="empty-state" role="alert"><h2>Could not load course resources</h2><p>{courseResourcesError}</p><button className="button button-outline" onClick={() => setCourseResourceReload((value) => value + 1)}>Try again</button></div>
@@ -1549,7 +1850,7 @@ export default function App() {
             </article>)}
           </section>
             : courseResourceQuery.trim() ? <div className="empty-state"><h2>No course resources match</h2><p>Try a different code, title or academic unit.</p></div>
-            : <div className="empty-state"><h2>No verified course resources yet</h2><p>Course resources will appear here after an administrator adds them to the Supabase catalogue. Tutor-uploaded materials appear on matching tutor profiles.</p></div>}
+            : <div className="empty-state"><h2>No verified course resources yet</h2><p>Course-specific items will appear here after an administrator links them to verified courses. Tutors can also share separate resources for each approved course on their profiles.</p></div>}
     </main> : section === "programmes" ? <main id="main-content" tabIndex={-1} className="page">
       <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "OFFICIAL ADMISSIONS LISTING"}</p><h1>{presentationDemo ? "Example UCC programmes" : "Explore UCC programmes"}</h1><p className="muted">{presentationDemo ? "Fictional entries demonstrate how programme information will be grouped and filtered." : "Browse degree and postgraduate programmes by the academic unit shown in UCC’s admissions catalogue."}</p></section>
       <div className="programme-controls">
@@ -1663,31 +1964,36 @@ export default function App() {
       {institutionId !== "" && institutions.find((item) => item.id === institutionId)?.name === "University of Cape Coast" && <p className="source-note">
         UCC academic units follow the <a href="https://academics.ucc.edu.gh/colleges" target="_blank" rel="noreferrer">official UCC structure</a>. The <a href="https://admissions.ucc.edu.gh/catalogue/departments" target="_blank" rel="noreferrer">admissions catalogue</a> lists degree programmes, not semester course codes. Administrators add course codes from verified teaching schedules.
       </p>}
-      {hasSearched && <p className="search-result-count" role="status">{busy ? "Searching for tutors…" : presentationDemo ? `${results.length} fictional demo profile${results.length === 1 ? "" : "s"} shown` : `${results.length} approved tutor${results.length === 1 ? "" : "s"} found`}</p>}
+      {hasSearched && <p className="search-result-count" role="status">{busy ? "Searching for tutors…" : presentationDemo ? `${groupedTutors.length} fictional demo profile${groupedTutors.length === 1 ? "" : "s"} shown` : `${groupedTutors.length} approved tutor${groupedTutors.length === 1 ? "" : "s"} found`}</p>}
       <section className="results-grid" aria-live="polite">
-        {results.length === 0 ? <div className="empty-state"><span className="empty-icon">⌕</span><h2>{hasSearched ? "No tutors found" : "Start with a course"}</h2><p>{hasSearched ? "No approved tutors were found for that course. Try a different course code, title or academic unit." : "Enter a course code or title to see approved, relevant tutors."}</p></div> : results.map((tutor) => <article className="tutor-card" key={`${tutor.id}-${tutor.course_code}`}>
-          <div className="tutor-card-top"><div className="avatar">{tutor.avatar_url ? <img src={tutor.avatar_url} alt="" /> : (tutor.name || "T").slice(0, 1)}</div><div><h2>{tutor.name}{tutor.featured && <VerifiedBadge label="TutorConnect verified tutor" />}</h2><p className="muted">{tutor.course_code}</p></div></div>
-          {presentationDemo && <span className="demo-chip">Fictional demo profile · no charges</span>}
-          <p>{tutor.bio || "Tutor profile"}</p>
-          <div className="unit-label">{[tutor.college, tutor.school, tutor.department].filter(Boolean).join(" / ") || "Academic unit not assigned"}</div>
-          <p className="tutor-meta">{tutor.avg_rating ? `★ ${tutor.avg_rating.toFixed(1)} (${tutor.review_count} reviews)` : "No reviews yet"} · {tutor.rate == null ? "Rate not listed" : `GHS ${tutor.rate}/hr`} · {tutor.delivery || "Delivery to be confirmed"}</p>
-          {!!resourcesByTutor[tutor.id]?.length && <div className="resource-list"><h3>Teaching previews & learning resources</h3>{resourcesByTutor[tutor.id].map((resource) => <a key={resource.id} href={resource.signed_url || resource.url || undefined} target="_blank" rel="noreferrer"><span>{resourceLabel(resource.resource_type)}</span><b>{resource.title}</b>{resource.description && <small>{resource.description}</small>}</a>)}<small>Materials are shared by the tutor; third-party materials are identified by their source.</small></div>}
-          {contacts[tutor.id] ? <div className="contact-box"><b>Contact unlocked</b><div>{contacts[tutor.id].phone || "Phone not listed"}</div><div>{contacts[tutor.id].email || "Email not listed"}</div></div>
-            : presentationDemo ? <button className="button button-outline" type="button" disabled>Contact unlock disabled in demo</button>
-              : <button className="button button-primary" disabled={!profile || busy} onClick={() => void unlockContact(tutor.id)}>Unlock contact · GHS 10</button>}
-          {profile?.role === "student" && contacts[tutor.id] && <div className="feedback-grid">
-            <form className="mini-form" onSubmit={(event) => void submitReview(event, tutor.id)}>
-              <h3>Leave a review</h3><label>Rating<select name="rating"><option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option></select></label>
-              <label>Feedback<textarea name="comment" rows={2} maxLength={1000} placeholder="Share useful, respectful feedback" /></label>
-              <button className="button button-outline">Submit review</button>
-            </form>
-            <form className="mini-form" onSubmit={(event) => void submitReport(event, tutor.id)}>
-              <h3>Report a concern</h3><label>Reason<select name="category"><option>Misleading profile</option><option>Unexpected charges</option><option>Unprofessional conduct</option><option>Service not delivered</option><option>Other</option></select></label>
-              <label>Details<textarea name="description" rows={2} required maxLength={2000} /></label>
-              <button className="button button-outline">Send private report</button>
-            </form>
-          </div>}
-        </article>)}
+        {groupedTutors.length === 0 ? <div className="empty-state"><span className="empty-icon">⌕</span><h2>{hasSearched ? "No tutors found" : "Start with a course"}</h2><p>{hasSearched ? "No approved tutors were found for that course. Try a different course code, title or academic unit." : "Enter a course code or title to see approved, relevant tutors."}</p></div> : groupedTutors.map((tutor) => {
+          const matchingResources = (resourcesByTutor[tutor.id] ?? []).filter((resource) =>
+            !resource.course_code || tutor.course_codes.includes(resource.course_code),
+          );
+          return <article className="tutor-card" key={tutor.id}>
+            <div className="tutor-card-top"><div className="avatar">{tutor.avatar_url ? <img src={tutor.avatar_url} alt="" /> : (tutor.name || "T").slice(0, 1)}</div><div><h2>{tutor.name}{tutor.featured && <VerifiedBadge label="TutorConnect verified tutor" />}</h2><p className="muted">Courses: {tutor.course_codes.join(", ")}</p></div></div>
+            {presentationDemo && <span className="demo-chip">Fictional demo profile · no charges</span>}
+            <p>{tutor.bio || "Tutor profile"}</p>
+            <div className="unit-label">{[tutor.college, tutor.school, tutor.department].filter(Boolean).join(" / ") || "Academic unit not assigned"}</div>
+            <p className="tutor-meta">{tutor.avg_rating ? `★ ${tutor.avg_rating.toFixed(1)} (${tutor.review_count} reviews)` : "No reviews yet"} · {tutor.rate == null ? "Rate not listed" : `GHS ${tutor.rate}/hr`} · {tutor.delivery || "Delivery to be confirmed"}</p>
+            {matchingResources.length > 0 && <div className="resource-list"><h3>Teaching previews & learning resources</h3>{matchingResources.map((resource) => <a key={resource.id} href={resource.signed_url || resource.url || undefined} target="_blank" rel="noreferrer"><span>{resource.course_code ? `${resource.course_code} · ` : "General · "}{resourceLabel(resource.resource_type)}</span><b>{resource.title}</b>{resource.description && <small>{resource.description}</small>}</a>)}<small>Course links are shown only for the matching subjects. Third-party materials are identified by their source.</small></div>}
+            {contacts[tutor.id] ? <div className="contact-box"><b>Contact unlocked</b><div>{contacts[tutor.id].phone || "Phone not listed"}</div><div>{contacts[tutor.id].email || "Email not listed"}</div></div>
+              : presentationDemo ? <button className="button button-outline" type="button" disabled>Contact unlock disabled in demo</button>
+                : <button className="button button-primary" disabled={!profile || busy} onClick={() => void unlockContact(tutor.id)}>Unlock contact · GHS 10</button>}
+            {profile?.role === "student" && contacts[tutor.id] && <div className="feedback-grid">
+              <form className="mini-form" onSubmit={(event) => void submitReview(event, tutor.id)}>
+                <h3>Leave a review</h3><label>Rating<select name="rating"><option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option></select></label>
+                <label>Feedback<textarea name="comment" rows={2} maxLength={1000} placeholder="Share useful, respectful feedback" /></label>
+                <button className="button button-outline">Submit review</button>
+              </form>
+              <form className="mini-form" onSubmit={(event) => void submitReport(event, tutor.id)}>
+                <h3>Report a concern</h3><label>Reason<select name="category"><option>Misleading profile</option><option>Unexpected charges</option><option>Unprofessional conduct</option><option>Service not delivered</option><option>Other</option></select></label>
+                <label>Details<textarea name="description" rows={2} required maxLength={2000} /></label>
+                <button className="button button-outline">Send private report</button>
+              </form>
+            </div>}
+          </article>;
+        })}
       </section>
     </main> : profile?.role === "student" && section === "student" ? <main id="main-content" tabIndex={-1} className="page">
       <section className="page-heading"><p className="eyebrow">STUDENT WORKSPACE</p><h1>Your activity{profile.is_verified && <VerifiedBadge label="TutorConnect verified member" />}</h1><p className="muted">Your reviews and private reports in one place.</p></section>
@@ -1725,7 +2031,7 @@ export default function App() {
           <div className="form-row"><label>Phone<input name="phone" type="tel" defaultValue={tutorContact?.phone || ""} /></label><label>Contact email<input name="contact_email" type="email" defaultValue={tutorContact?.email || user?.email || ""} /></label></div>
           <button className="button button-primary" disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>
         </form></section>
-        <section className="panel"><h2>My courses</h2><p className="muted">Course requests are shown under their official academic unit and need admin approval before search.</p>
+        <section className="panel"><h2>My courses</h2><p className="muted">You can teach multiple courses. Request approval for each course you teach; approved courses appear together on your tutor profile.</p>
           {tutorCourses.length ? tutorCourses.map((item) => <article className="list-item" key={item.id}><div className="row-between"><b>{item.courses?.code} · {item.courses?.title}</b><span className={`status ${item.status}`}>{item.status}</span></div><small>{unitPath(item.courses?.academic_unit_id ?? null, units)}</small></article>) : <p className="muted">No course requests yet.</p>}
           <form className="mini-form course-search" onSubmit={(event) => void searchCourseOptions(event)}><h3>Find a course to teach</h3>
             <label>Course code or title<input name="course_query" placeholder="Search the verified course catalogue" required /></label><button className="button button-outline">Search catalogue</button>
@@ -1733,7 +2039,7 @@ export default function App() {
           {courseOptions.map((course) => <form className="course-option" key={course.id} onSubmit={(event) => void requestCourse(event)}><input type="hidden" name="course_id" value={course.id} /><div><b>{course.code} · {course.title}</b><small>{unitPath(course.academic_unit_id, units)}</small></div><button className="button button-outline">Request approval</button></form>)}
         </section>
       </div>
-      <section className="panel"><h2>Teaching previews and resources</h2><p className="muted">Publish one resource per GHS 50 payment. Upload an MP4/WebM video, PDF, Office document, text file or image (up to 50 MB), or share a YouTube/HTTPS link. Only resources for your approved courses can be published. Share only materials you own or are authorized to distribute.</p>
+      <section className="panel"><h2>Teaching previews and resources</h2><p className="muted">Add resources separately for each approved course you teach. Publish one resource per GHS 50 payment: upload an MP4/WebM video, PDF, Office document, text file or image (up to 50 MB), or share a YouTube/HTTPS link. Course links appear only beside matching subjects. Share only materials you own or are authorized to distribute.</p>
         {tutorProfile?.status !== "approved" ? <p className="setup-note">Your tutor profile must be approved before you can pay for or publish resources.</p>
           : resourceCreditsError ? <div className="empty-state" role="alert"><h3>Could not check your resource credits</h3><p>{resourceCreditsError}</p><button className="button button-outline" type="button" onClick={() => void loadTutorDashboard(profile.id)}>Try again</button></div>
             : resourceCredits.length === 0 ? <div className="resource-credit-box"><p>You have no unused resource credits. Pay GHS 50 to publish one file or link.</p><button className="button button-primary" type="button" disabled={busy} onClick={() => void startResourceCheckout()}>{busy ? "Opening secure checkout…" : "Pay GHS 50 for one resource"}</button></div>

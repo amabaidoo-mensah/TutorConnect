@@ -6,11 +6,15 @@ React, TypeScript, Supabase and Paystack prototype.
 
 1. Run `npm install`.
 2. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-3. Run migrations `001_schema.sql`, `002_academic_units_and_moderation.sql`, `003_profiles_and_tutor_resources.sql`, `004_academic_programmes.sql`, `005_verified_courses_and_resources.sql`, `006_student_assistant_quota.sql`, and `007_tutor_resource_course_associations.sql` in order in the Supabase SQL editor. Migration 005 creates the source-labelled learning-resource table; migration 007 lets tutor resources be linked to approved courses.
-4. Promote a trusted account to administrator: `update profiles set role='admin' where id='<uuid>';`.
+3. Run migrations `001_schema.sql` through `009_auth_profile_recovery.sql` in numeric order in the Supabase SQL editor. Migration 005 creates the source-labelled learning-resource table, migration 007 associates tutor resources with approved courses, migration 008 adds paid resource publishing and private file storage, and migration 009 makes new-user profile creation idempotent and repairs missing profiles after sign-in.
+4. To enable the protected admin dashboard for a trusted account, find the account ID with `select id, email from auth.users where email='admin@example.com';`, then run `update public.profiles set role='admin' where id='<account-uuid>';`. Never add an admin option to public sign-up.
 5. Start the app with `npm run dev`.
 
-The interface can be previewed without Supabase credentials, but authentication and data-backed screens require a configured Supabase project. For payments, deploy `supabase/functions/payments` and configure the Paystack secret and webhook in test mode.
+The interface can be previewed without Supabase credentials, but authentication and data-backed screens require a configured Supabase project. After applying migration 008, redeploy `supabase/functions/payments` and configure the Paystack secret and webhook in test mode.
+
+## Presentation demo
+
+Open `/?demo=1` (or choose **Presentation demo** in the navigation) to show fictional tutor profiles, example programmes, and a sample learning-resource library. The page labels mock content, does not write demo records to Supabase, and disables contact unlocks and payments for demo profiles. **Create a real account** opens the normal Supabase signup flow; use a valid project URL/key and the project’s email-confirmation settings. Exiting the demo returns to the live app.
 
 ## Netlify deployment
 
@@ -20,7 +24,11 @@ Connect the repository in Netlify and deploy the branch containing these files. 
 
 ## Tutor plans and verification
 
-Approved tutors can purchase a monthly or semester listing from the tutor dashboard. The blue TutorConnect check appears only when the tutor application is approved and `premium_until` is still in the future. The plan is activated by the server only after Paystack verifies the transaction; the browser cannot grant the badge or unlock contacts by itself. Configure the Paystack **secret test key** as the `PAYSTACK_SECRET` Supabase Edge Function secret and deploy `supabase/functions/payments` before testing checkout. Never put the secret key in a `VITE_` variable or browser code.
+Approved tutors can purchase a monthly or semester listing from the tutor dashboard. The blue TutorConnect check appears only when the tutor application is approved and `premium_until` is still in the future. The plan is activated by the server only after Paystack verifies the transaction; the browser cannot grant the badge or unlock contacts by itself. Students pay GHS 10 once per tutor to unlock contact details. An active student receives the same badge after at least one such payment is verified by Paystack. Contact information is returned only after the Edge Function confirms the payment.
+
+Email confirmation may be enabled in Supabase Auth. In that case, new users must follow the confirmation link before logging in; the app displays this requirement instead of attempting an early sign-in. Password recovery links open a secure password-update form. Set the Supabase Auth site URL to the deployed app origin and add each local/deployed redirect URL to the allowed redirect URLs. If an existing authenticated account has no `profiles` row, migration 009 allows the app to create its own safe student/tutor profile and retry loading it; it never creates or grants an admin role.
+
+Publishing a tutor resource costs GHS 50 per resource. A verified payment creates one publishing credit; each credit can publish one tutor resource and cannot be reused after deletion. Approved tutors can upload a video or study file (up to 50 MB) to the private `tutor-resources` bucket or publish a YouTube/HTTPS link. The app creates short-lived signed links for authorized students. RLS and a database trigger enforce payment and credit use, so a client-side bypass cannot publish unpaid resources. Apply migration 008 and redeploy the payments function before enabling this flow. Configure the Paystack **secret test key** as the `PAYSTACK_SECRET` Supabase Edge Function secret. Never put the secret key in a `VITE_` variable or browser code.
 
 ## Student AI assistant
 
@@ -37,8 +45,9 @@ The function enforces per-user request limits and bounds message size and respon
 ## Validation
 
 - `npm run build` type-checks and builds the application.
+- `npm run test:unit` checks account-verification rules.
 - `npx playwright install chromium` installs the browser for the UI tests.
-- `npm run test:e2e` runs the sign-in/sign-up, catalogue-error, course-resource-library, and mobile-layout browser checks. If Chromium cannot be downloaded and Chrome is already installed, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to that browser executable path before running the tests.
+- `npm run test:e2e` runs the authentication, presentation-demo, accessibility, assistant-support, catalogue, resource-library, and mobile-layout browser checks. If Chromium cannot be downloaded and Chrome is already installed, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to that browser executable path before running the tests.
 
 ## Academic catalogue
 
@@ -57,7 +66,7 @@ The public **Courses & resources** library is separate from tutor profiles. Migr
 
 ## Profiles and teaching resources
 
-Students, tutors and administrators can edit a short bio and upload or replace a JPG, PNG or WebP profile photo (up to 5 MB). The profile editor previews a selected image before saving. Photos are stored in the private `profile-photos` bucket; owners and administrators can view them, and approved active tutor photos can appear in tutor search. Tutors can add HTTPS links to teaching videos, course materials and past questions. Share only materials you own or are authorized to distribute; links are labeled by their source and are not represented as UCC resources unless verified.
+Students, tutors and administrators can edit a short bio and upload or replace a JPG, PNG or WebP profile photo (up to 5 MB). The profile editor previews a selected image before saving. Photos are stored in the private `profile-photos` bucket; owners and administrators can view them, and approved active tutor photos can appear in tutor search. Approved tutors can publish paid, course-associated files or HTTPS links as described above. Share only materials you own or are authorized to distribute; links are labeled by their source and are not represented as UCC resources unless verified.
 
 External learning examples and the course library:
 

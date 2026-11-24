@@ -38,7 +38,7 @@ test("course resource library shows source-labelled materials without tutor prof
   await expect(resourceLink).toHaveAttribute("rel", "noreferrer");
 });
 
-test("resource library provides independent subject fallbacks before course records exist", async ({ page }) => {
+test("resource library does not show hard-coded examples when Supabase has no course resources", async ({ page }) => {
   await page.route("**/rest/v1/institutions*", (route) => route.fulfill({
     json: [{ id: 11, name: "University of Cape Coast" }],
   }));
@@ -48,10 +48,7 @@ test("resource library provides independent subject fallbacks before course reco
   await page.goto("/");
   await page.getByRole("button", { name: "Courses & resources" }).click();
 
-  await expect(page.getByRole("heading", { name: "MIT 18.06 Linear Algebra" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Harvard CS50" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open MIT 18.06 Linear Algebra" })).toHaveAttribute(
-    "href",
-    "https://www.youtube.com/playlist?list=PLEAYkSg4uSQ1-bul680xs3oaCwI90yZHb",
-  );
+  await expect(page.getByRole("heading", { name: "No verified course resources yet" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "MIT 18.06 Linear Algebra" })).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "Harvard CS50" })).not.toBeVisible();
 });

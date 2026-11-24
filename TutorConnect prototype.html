@@ -1,0 +1,264 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>TutorConnect</title>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--tx:#0f1b3d;--mut:#5a6685;--bd:#d9e0ee;--nv:#0f1b3d;--ac:#ffb703;--ok:#127a47;--bad:#bd2f27;--warn:#8a5d00;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1226;--card:#141d38;--tx:#eef1fa;--mut:#a2adc8;--bd:#283457;--nv:#070c1b;--ac:#ffc233;--ok:#4cc98a;--bad:#ff7b72;--warn:#f0bd4f;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx)}
+h1,h2,h3{font-family:"Segoe UI Variable",Aptos,"Segoe UI",Arial,sans-serif;font-weight:650;margin:.4em 0}
+header{background:var(--nv);color:#fff;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+header nav{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:10px;cursor:pointer;min-height:40px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--ac);outline-offset:1px}
+header button{background:transparent;color:#fff;border-color:#ffffff55}header .lg{font:700 1.15rem/1 "Segoe UI Variable",Aptos,"Segoe UI",Arial,sans-serif;border:0}
+.pri{background:var(--ac)!important;color:#14192b!important;border-color:var(--ac)!important;font-weight:600}.dng{color:var(--bad)!important;border-color:var(--bad)!important}
+main{max-width:920px;margin:0 auto;padding:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin:10px 0}
+.hero{background:var(--nv);color:#fff;border-radius:12px;padding:22px 16px}.hero h1{font-size:1.7rem;margin:0 0 6px}.hero p{margin:0;color:#cfd7ee}
+input,select,textarea{font:inherit;width:100%;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx);margin:4px 0 10px}
+label{font-size:.85rem;color:var(--mut)}.ck{display:flex;gap:8px;align-items:center;color:var(--tx);font-size:.95rem}.ck input{width:auto;margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1 1 140px}.av{flex:none!important;width:46px;height:46px;border-radius:50%;background:var(--bd);display:grid;place-items:center;font-size:1.1rem;font-weight:700;overflow:hidden}.av img{width:100%;height:100%;object-fit:cover}
+.badge{display:inline-block;font-size:.75rem;padding:1px 9px;border-radius:99px;border:1px solid currentColor;font-weight:600}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}.mut{color:var(--mut)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}.tabs button{white-space:nowrap}.tabs .on{background:var(--nv);color:#fff;border-color:var(--nv)}
+.g{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.stat{margin:0}.stat b{font:700 1.6rem "Segoe UI Variable",Aptos,"Segoe UI",Arial,sans-serif;display:block}
+#m{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;justify-content:center;z-index:9}#m.on{display:flex}
+#m>div{background:var(--card);width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:16px;max-height:90%;overflow:auto}
+#t{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--nv);color:#fff;padding:10px 16px;border-radius:99px;z-index:10;display:none;max-width:90%;text-align:center}
+.sc{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:.88rem}td,th{text-align:left;padding:6px;border-bottom:1px solid var(--bd)}footer{padding:14px;text-align:center;font-size:.85rem}
+</style><style>
+:root{--bg:#f4f6f9;--card:#fff;--tx:#1e293b;--mut:#637487;--bd:#dce4ec;--nv:#1f3a56;--ac:#b8d9ef;--ok:#18765b;--bad:#b7463c;--warn:#946323;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#111a24;--card:#192635;--tx:#edf3f8;--mut:#a6b5c3;--bd:#33475a;--nv:#1a3550;--ac:#82b5d7;--ok:#73d0a6;--bad:#ff8b7e;--warn:#e3ba70;color-scheme:dark}}
+body{background:var(--bg);color:var(--tx);font-family:"Segoe UI Variable",Aptos,"Segoe UI",Arial,sans-serif}
+h1,h2,h3{font-family:"Segoe UI Variable",Aptos,"Segoe UI",Arial,sans-serif;font-weight:650;letter-spacing:-.035em}
+header{background:var(--card);color:var(--tx);padding:14px clamp(18px,5vw,72px);border-bottom:1px solid var(--bd);min-height:76px}
+header nav{gap:10px}
+header button{background:transparent;color:var(--tx);border-color:transparent;font-size:.92rem}
+header .lg{display:flex;align-items:center;gap:10px;color:var(--nv);font:700 1.15rem/1 "Segoe UI Variable",Aptos,"Segoe UI",Arial,sans-serif}
+.brand-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:var(--ac);color:#1f3a56;font-size:.85rem;font-weight:800;letter-spacing:-.04em}
+.nav-status{font-size:.82rem;color:var(--mut);padding:0 10px}
+.live-dot{display:inline-block;width:7px;height:7px;margin:0 7px 1px 0;border-radius:50%;background:#56a878}
+.nav-action{border:1px solid var(--bd);border-radius:999px;padding:8px 15px}
+.source-note{padding:12px 15px;border-left:3px solid #78aaca;border-radius:0 10px 10px 0;background:#edf3f8;color:var(--mut);font-size:.85rem}
+.source-note p{margin:5px 0}
+.profile-edit{display:grid;grid-template-columns:130px 1fr;gap:20px;align-items:start}
+.profile-edit>div:last-child{display:grid;gap:8px}
+.profile-preview{width:110px;height:110px;display:grid;place-items:center;overflow:hidden;border-radius:26px;background:#edf3f8;color:var(--nv);font-size:2rem;font-weight:700}
+.profile-preview img{width:100%;height:100%;object-fit:cover}
+.profile-edit button{justify-self:start}
+.card a{font-weight:650}
+button{transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+button:hover{transform:translateY(-1px);border-color:#aab8c5;box-shadow:0 7px 18px #1f3a5612}
+button:active{transform:translateY(0)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #78aaca;outline-offset:3px}
+.pri{background:var(--nv)!important;color:#fff!important;border-color:var(--nv)!important}
+.pri:hover{background:#2c5071!important}
+main{max-width:1180px;margin:0 auto;padding:24px clamp(16px,4vw,48px)}
+.card{border-color:var(--bd);border-radius:18px;box-shadow:0 8px 30px #1d39230a}
+.hero{background:var(--nv);border-radius:22px;padding:30px}
+input,select,textarea{border-color:var(--bd);border-radius:12px;padding:12px 14px}
+footer{color:var(--mut);font-size:.78rem}
+footer button{min-height:32px;padding:4px 10px;font-size:.78rem}
+.auth-main{max-width:1320px;padding-top:clamp(20px,4vh,48px);padding-bottom:clamp(20px,4vh,48px)}
+.auth-shell{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(390px,.92fr);gap:clamp(24px,5vw,72px);align-items:stretch}
+.auth-story{position:relative;overflow:hidden;isolation:isolate;display:flex;flex-direction:column;justify-content:space-between;min-height:650px;padding:clamp(28px,5vw,62px);border-radius:30px;background:var(--nv);color:#f5f8fb}
+.auth-story:before,.auth-story:after{position:absolute;z-index:-1;content:"";border:1px solid #b8d9ef30;border-radius:50%}
+.auth-story:before{width:520px;height:520px;right:-210px;top:-210px}
+.auth-story:after{width:390px;height:390px;right:-145px;top:-145px}
+.story-kicker,.auth-kicker{display:flex;align-items:center;gap:10px;font-size:.72rem;font-weight:750;letter-spacing:.13em;text-transform:uppercase}
+.story-kicker{color:#b8d9ef}
+.story-copy{max-width:570px;padding:46px 0 34px}
+.story-copy h1{max-width:580px;margin:18px 0;font-size:clamp(2.6rem,5vw,4.7rem);line-height:1.04;font-weight:650;letter-spacing:-.06em}
+.story-copy h1 em{color:var(--ac);font-style:normal;font-weight:700}
+.story-copy p{max-width:440px;margin:0;color:#d1dce7;font-size:1.02rem;line-height:1.75}
+.story-feature{position:relative;max-width:470px;padding:18px 20px;border:1px solid #ffffff25;border-radius:19px;background:#ffffff0b;backdrop-filter:blur(8px)}
+.feature-overline{display:block;margin-bottom:12px;color:#c0d0c4;font-size:.67rem;font-weight:750;letter-spacing:.12em}
+.feature-person{display:flex;align-items:center;gap:13px}
+.feature-avatar{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:15px;background:#b8d9ef;color:#1f3a56;font-weight:800}
+.feature-details{display:grid;gap:2px;min-width:0}
+.feature-details strong{font-size:.94rem}
+.feature-details small,.feature-course small{color:#c4d2df;font-size:.77rem}
+.feature-rating{margin-left:auto;align-self:flex-start;border-radius:99px;background:#ffffff13;padding:6px 9px;color:#f5d477;font-size:.78rem;white-space:nowrap}
+.feature-course{display:flex;justify-content:space-between;gap:10px;margin-top:16px;padding-top:13px;border-top:1px solid #ffffff20}
+.feature-course b{color:#b8d9ef;font-size:.78rem;letter-spacing:.04em}
+.story-footer{display:flex;flex-wrap:wrap;gap:20px 34px;padding-top:24px;border-top:1px solid #ffffff24}
+.story-stat{display:grid;gap:2px}
+.story-stat b{font:650 1.35rem "Segoe UI Variable",Aptos,"Segoe UI",Arial,sans-serif;color:#fff}
+.story-stat span{color:#c4d2df;font-size:.73rem}
+.auth-side{align-self:center;width:100%;max-width:490px;margin:0 auto;padding:clamp(22px,3vw,40px) 0}
+.auth-kicker{justify-content:space-between;color:var(--mut);letter-spacing:.08em}
+.preview-pill{padding:6px 10px;border:1px solid var(--bd);border-radius:99px;color:var(--nv);font-size:.68rem;letter-spacing:.02em;text-transform:none}
+.auth-side h2{margin:20px 0 6px;font-size:2rem;font-weight:500;letter-spacing:-.045em}
+.auth-intro{margin:0 0 22px;color:var(--mut);font-size:.91rem;line-height:1.65}
+.auth-switch{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:22px 0;padding:5px;border:1px solid var(--bd);border-radius:13px;background:#e9eef3}
+.auth-switch button{min-height:42px;border:0;border-radius:9px;background:transparent;color:var(--mut);font-weight:650}
+.auth-switch button[aria-selected=true]{background:var(--card);color:var(--nv);box-shadow:0 2px 8px #1f3a5613}
+.auth-form{display:grid;gap:12px}
+.auth-form label{display:block;margin-bottom:5px;color:var(--tx);font-size:.79rem;font-weight:650}
+.auth-form input,.auth-form select{margin:0;background:var(--card);font-size:.9rem}
+.auth-field{display:grid;gap:4px}
+.auth-submit{width:100%;margin-top:5px;min-height:48px;border-radius:13px;font-weight:700}
+.auth-note{margin:10px 0 0;color:var(--mut);font-size:.77rem;line-height:1.55}
+.auth-divider{display:flex;align-items:center;gap:12px;margin:20px 0 12px;color:var(--mut);font-size:.73rem}
+.auth-divider:before,.auth-divider:after{height:1px;flex:1;background:var(--bd);content:""}
+.demo-stack{display:grid;gap:8px}
+.demo-account{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:8px 12px;border:1px solid var(--bd);border-radius:13px;background:var(--card);text-align:left}
+.demo-avatar{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:11px;background:#edf3f8;color:var(--nv);font-size:.72rem;font-weight:800}
+.demo-copy{display:grid;gap:1px}
+.demo-copy strong{font-size:.82rem}
+.demo-copy small{color:var(--mut);font-size:.72rem}
+.demo-arrow{margin-left:auto;color:var(--mut);font-size:1rem}
+.signup-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.signup-grid .wide{grid-column:1/-1}
+.course-picker{max-height:160px;overflow:auto;padding:10px 12px;border:1px solid var(--bd);border-radius:12px}
+.course-picker summary{cursor:pointer;color:var(--nv);font-size:.8rem;font-weight:650}
+.course-picker .ck{margin-top:8px;font-size:.78rem}
+.course-picker .ck input{width:auto}
+.auth-footnote{display:flex;gap:8px;align-items:flex-start;margin:12px 0;padding:10px 12px;border-radius:12px;background:#edf3f8;color:#52677b;font-size:.74rem;line-height:1.5}
+@media(max-width:920px){.auth-shell{grid-template-columns:minmax(0,1fr) minmax(340px,.9fr);gap:28px}.auth-story{min-height:620px;padding:34px}.story-copy h1{font-size:clamp(2.4rem,5vw,3.8rem)}}
+@media(max-width:760px){header{padding:12px 18px}.nav-status{display:none}.auth-main{padding:14px}.auth-shell{grid-template-columns:1fr;gap:14px}.auth-side{order:-1;max-width:560px;padding:24px 8px}.auth-story{min-height:unset;padding:28px;border-radius:22px}.story-copy{padding:30px 0 24px}.story-copy h1{font-size:clamp(2.5rem,10vw,3.7rem)}.story-footer{gap:16px 26px}.auth-side h2{font-size:1.8rem}.profile-edit{grid-template-columns:1fr}.profile-preview{width:88px;height:88px}}
+@media(max-width:430px){header .lg{font-size:1rem}.nav-action{padding:7px 10px;font-size:.8rem}.auth-story{padding:23px}.feature-course{flex-direction:column;gap:4px}.signup-grid{grid-template-columns:1fr}.signup-grid .wide{grid-column:auto}.demo-account{min-height:54px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+</style></head><body><div id="app"></div><div id="m"></div><div id="t" role="status"></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),DAY=864e5,now=()=>Date.now();
+function seed(){return{fee:10,n:100,
+inst:[{id:1,name:'University of Cape Coast'}],
+courses:[{id:1,i:1,code:'',title:'Linear Algebra · external learning sample',sample:true},{id:2,i:1,code:'',title:'Algorithms and Data Structures · external learning sample',sample:true}],
+plans:[{id:'m',name:'Monthly',a:50,days:30},{id:'s',name:'Semester',a:200,days:120}],
+stu:[{id:'s1',name:'Demo student',inst:1}],
+tut:[
+{id:'t1',name:'Sample tutor · Mathematics',e:'M',bio:'Illustrative TutorConnect profile. This is not a UCC lecturer or staff account.',q:'Sample credentials are not verified.',rate:40,mode:'Online',av:'Weekday evenings',st:'approved',pu:0,v:0,cs:[{c:1,a:'approved'}],resources:[{kind:'Teaching video',title:'Linear equations · Lecture 1',source:'MIT OpenCourseWare · Gilbert Strang',url:'https://www.youtube.com/watch?v=J7DzL2_Na80&list=PLE7DDD91010BC51F8'},{kind:'Course materials & past exams',title:'MIT 18.06 Linear Algebra',source:'MIT OpenCourseWare · external sample',url:'https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/'}]},
+{id:'t2',name:'Sample tutor · Computing',e:'C',bio:'Illustrative TutorConnect profile. This is not a UCC lecturer or staff account.',q:'Sample credentials are not verified.',rate:35,mode:'Online',av:'Weekends',st:'approved',pu:0,v:0,cs:[{c:2,a:'approved'}],resources:[{kind:'Course materials & past exams',title:'Introduction to Algorithms · MIT 6.006',source:'MIT OpenCourseWare · external sample',url:'https://ocw.mit.edu/courses/6-006-introduction-to-algorithms-spring-2020/'},{kind:'Lecture and problem-set resources',title:'CS50x',source:'Harvard University · external sample',url:'https://cs50.harvard.edu/x/'}]}],
+profiles:{s1:{bio:'Demo student profile.',photo:''},t1:{bio:'Demo profile; not a UCC tutor.',photo:''},t2:{bio:'Demo profile; not a UCC tutor.',photo:''},a1:{bio:'Demo administrator profile.',photo:''}},
+vault:{t1:{phone:'+233 20 000 0001',email:'sample-math@example.com'},t2:{phone:'+233 20 000 0002',email:'sample-computing@example.com'}},
+rv:[],rp:[],ul:[],py:[],au:[],nt:[]}}
+let D,S,V={n:'login'},T=0,Q={i:1,q:'',m:'',x:'',r:''},RC,authMode='login';
+try{localStorage.removeItem('tc4');const l=JSON.parse(localStorage.getItem('tc5'));D=l.D;S=l.S}catch(e){}
+D=D||seed();S=S||{role:null};
+if(S.role)V={n:'dash'};
+const save=()=>{try{localStorage.setItem('tc5',JSON.stringify({D,S}))}catch(e){toast('Browser storage is full; remove a large photo or reset the demo.')}};
+const C=id=>D.courses.find(c=>c.id==id),I=id=>(D.inst.find(i=>i.id==id)||{}).name,TT=id=>D.tut.find(t=>t.id==id);
+const profileInfo=id=>D.profiles[id]||{bio:'',photo:''},courseLabel=c=>c?`${c.code?c.code+' · ':''}${c.title}`:'Course unavailable';
+const avatar=(id,fallback)=>profileInfo(id).photo?`<img src="${esc(profileInfo(id).photo)}" alt="">`:esc(fallback||'TC');
+const avg=id=>{const r=D.rv.filter(x=>x.t==id&&x.st=='pub');return r.length?{a:r.reduce((s,x)=>s+x.r,0)/r.length,n:r.length}:null};
+const prem=t=>t.pu>now(),fd=t=>new Date(t).toLocaleString('en-GB',{dateStyle:'medium',timeStyle:'short'});
+const bd=s=>`<span class="badge ${{approved:'ok',paid:'ok',active:'ok',resolved:'ok',pending:'warn',open:'warn','in review':'warn',failed:'bad',rejected:'bad',suspended:'bad',removed:'bad',hidden:'bad'}[s]||'mut'}">${s}</span>`;
+const rt=id=>{const a=avg(id);return a?`★ ${a.a.toFixed(1)} (${a.n} review${a.n>1?'s':''})`:'<span class=mut>No reviews yet</span>'};
+const note=(u,m)=>D.nt.unshift({u,m,at:now()}),log=(a,t,r)=>D.au.unshift({who:S.name||S.role,a,t,r,at:now()});
+const toast=m=>{const e=$('#t');e.textContent=m;e.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>e.style.display='none',2800)};
+const need=r=>S.role==r||(toast('Denied: this needs the '+r+' role'),0);
+const mo=h=>{$('#m').innerHTML='<div>'+h+'</div>';$('#m').className='on'},cm=()=>$('#m').className='';
+const ask=(title,extra,cb)=>{RC=cb;mo(`<form data-f=rs><h3>${title}</h3>${extra}<label>Reason (required, saved to the audit log)</label><textarea name=r required rows=3></textarea><div class=row><button type=button data-a=cm>Cancel</button><button class=pri>Confirm</button></div></form>`)};
+const srv=(s,t)=>D.ul.some(u=>u.s==s&&u.t==t&&u.st=='paid')?D.vault[t]:null; /* simulated server: contact only leaves the vault after a paid unlock */
+const st=(n,l)=>`<div class="card stat"><b>${n}</b>${l}</div>`,empty=m=>`<div class="card mut">${m}</div>`;
+const tabs=tb=>`<div class=tabs>${tb.map((x,i)=>`<button class="${i==T?'on':''}" data-a=tb data-v=${i}>${x}</button>`).join('')}</div>`;
+const nts=()=>{const n=D.nt.filter(x=>x.u==S.id).slice(0,6);return`<div class=card><b>Notifications</b>${n.length?n.map(x=>`<p>${esc(x.m)}<br><small class=mut>${fd(x.at)}</small></p>`).join(''):'<p class=mut>Nothing new.</p>'}</div>`};
+const pyT=r=>r.length?`<div class="card sc"><table><tr><th>Reference<th>For<th>GHS<th>Status<th>Date</tr>${r.map(p=>`<tr><td>${p.ref}<td>${p.k=='c'?'Contact unlock':'Premium'}<td>${p.a}<td>${bd(p.st)}<td>${fd(p.at)}</tr>`).join('')}</table></div>`:empty('No payments yet.');
+function srch(){const q=Q.q.trim().toLowerCase();if(!q)return null;
+const ids=D.courses.filter(c=>c.i==Q.i&&(c.code+' '+c.title).toLowerCase().includes(q)).map(c=>c.id);
+let r=D.tut.filter(t=>t.st=='approved'&&t.cs.some(x=>x.a=='approved'&&ids.includes(x.c)));
+if(Q.m)r=r.filter(t=>t.mode==Q.m||t.mode=='Both');if(Q.x)r=r.filter(t=>t.rate<=+Q.x);if(Q.r)r=r.filter(t=>(avg(t.id)||{a:0}).a>=+Q.r);
+return{f:r.filter(prem),o:r.filter(t=>!prem(t)).sort((a,b)=>((avg(b.id)||{a:0}).a)-((avg(a.id)||{a:0}).a)),ids}}
+const card=(t,ids)=>{const x=ids&&t.cs.find(x=>x.a=='approved'&&ids.includes(x.c)),c=x&&C(x.c);return`<div class=card><div class=row style="flex-wrap:nowrap"><div class=av aria-hidden=true>${avatar(t.id,t.e)}</div><div><b>${esc(t.name)}</b> ${prem(t)?'<span class="badge warn">Featured</span>':''}<br><small>${rt(t.id)} · GHS ${t.rate}/hr · ${t.mode}</small></div></div><p>${esc(t.bio)}</p>${profileInfo(t.id).bio?`<p class=mut>${esc(profileInfo(t.id).bio)}</p>`:''}${c?`<small class=mut>Learning topic: ${esc(courseLabel(c))}</small><br>`:''}${t.resources&&t.resources.length?`<p><span class=badge>Teaching previews available</span></p>`:''}<button class=pri data-a=tut data-v=${t.id}>View profile</button></div>`};
+const sf=()=>`<form data-f=sr class=card><label for=qi>Institution</label><select id=qi name=i>${D.inst.map(i=>`<option value=${i.id} ${Q.i==i.id?'selected':''}>${esc(i.name)}</option>`).join('')}</select><label for=qq>Course code or learning topic</label><input id=qq name=q value="${esc(Q.q)}" placeholder="Search official codes or sample topics" required><button class=pri>Search tutors</button></form>`;
+const hdr=()=>`<header><button class=lg data-a=go data-v=login><span class=brand-mark>tc</span><span>TutorConnect</span></button><nav><span class=nav-status><span class=live-dot></span>Made for Ghanaian campuses</span><button class=nav-action data-a=go data-v=find>Explore tutors</button>${S.role?`<button data-a=go data-v=dash>${S.role=='admin'?'Admin':'Dashboard'}</button><button data-a=go data-v=profile>My profile</button><button data-a=lo>Log out</button>`:''}</nav></header>`;
+function homeV(){const f=D.tut.filter(t=>t.st=='approved'&&prem(t));return`<div class=hero><h1>Find a tutor for your course</h1><p>Explore sample learning topics and compare tutor profiles before booking.</p></div>${sf()}<div class="card source-note"><b>Sample data notice</b><p>These learning topics and tutor accounts are fictional demo examples, not official UCC course codes or UCC lecturers. The links below point to external, open learning materials.</p><a href="https://academics.ucc.edu.gh/colleges" target=_blank rel=noreferrer>UCC academic structure</a> · <a href="https://library.ucc.edu.gh/FindMaterials" target=_blank rel=noreferrer>UCC Library materials portal</a></div>
+<h2>How it works</h2><div class=g><div class="card stat"><b>1</b>Search your institution and course</div><div class="card stat"><b>2</b>Compare approved tutors, rates and reviews</div><div class="card stat"><b>3</b>Pay a small access fee to unlock contact details</div></div>
+<p class=mut>Every tutor is reviewed before appearing. You can rate tutors and report problems to our admin team.</p><h2>Promoted tutors</h2>${f.map(t=>card(t)).join('')||empty('No promoted tutors right now.')}`}
+function findV(){const r=srch();let h=sf()+`<div class=tabs>${D.courses.filter(c=>c.i==Q.i).map(c=>`<button data-a=pk data-v="${esc(courseLabel(c))}">${esc(courseLabel(c))}</button>`).join('')}</div><p class=source-note>Demo topics are not official UCC course codes. Search UCC's <a href="https://admissions.ucc.edu.gh/catalogue/departments" target=_blank rel=noreferrer>programme catalogue</a> and consult the official teaching schedule for actual course units.</p>`;
+if(!D.courses.some(c=>c.i==Q.i))return h+empty('No verified course units have been loaded. Degree programmes are not course units; add actual course codes from an official teaching schedule in the admin area.');
+if(!r)return h+empty('Choose a sample topic or enter a course code to see tutors.');
+h+=`<div class="card row"><div><label>Delivery</label><select data-k=m><option value="">Any</option>${['Online','In person'].map(x=>`<option ${Q.m==x?'selected':''}>${x}</option>`).join('')}</select></div><div><label>Max GHS per hour</label><input type=number min=0 data-k=x value="${esc(Q.x)}"></div><div><label>Minimum rating</label><select data-k=r><option value="">Any</option>${[3,4,5].map(x=>`<option value=${x} ${Q.r==x?'selected':''}>${x}+ stars</option>`).join('')}</select></div></div><h2>Results for “${esc(Q.q)}” at ${esc(I(Q.i))}</h2>`;
+if(!r.f.length&&!r.o.length)return h+empty('No approved tutors match. Try another course code or loosen the filters.');
+return h+(r.f.length?'<h3>Featured</h3>'+r.f.map(t=>card(t,r.ids)).join(''):'')+(r.o.length?'<h3>All tutors</h3>'+r.o.map(t=>card(t,r.ids)).join(''):'')}
+function tutorV(id){const t=TT(id);if(!t||(t.st!='approved'&&S.role!='admin'&&S.id!=id))return empty('This profile is unavailable.')+'<button data-a=bk>Back</button>';
+const un=S.role=='student'&&srv(S.id,id),rv=D.rv.filter(x=>x.t==id&&x.st=='pub');
+return`<button data-a=bk>← Back</button><div class=card><div class=row style="flex-wrap:nowrap"><div class=av aria-hidden=true>${avatar(id,t.e)}</div><div><h2 style="margin:0">${esc(t.name)}</h2>${prem(t)?'<span class="badge warn">Featured</span> ':''}${t.st!='approved'?bd(t.st):''}<br>${rt(id)}</div></div><p>${esc(t.bio)}</p>${profileInfo(id).bio?`<p><b>About:</b> ${esc(profileInfo(id).bio)}</p>`:''}<p><b>Qualifications:</b> ${esc(t.q)}<br><b>Rate:</b> GHS ${t.rate} per hour (disclosed)<br><b>Delivery:</b> ${t.mode}<br><b>Availability:</b> ${esc(t.av)}</p><b>Learning topics</b><ul>${t.cs.filter(x=>x.a=='approved').map(x=>`<li>${esc(courseLabel(C(x.c)))} (${esc(I(C(x.c).i))})</li>`).join('')}</ul></div>
+${t.resources&&t.resources.length?`<div class=card><b>Teaching previews & learning resources</b>${t.resources.map(r=>`<p><span class=badge>${esc(r.kind)}</span><br><a href="${esc(r.url)}" target=_blank rel=noreferrer>${esc(r.title)}</a><br><small class=mut>${esc(r.source)}</small></p>`).join('')}<small class=mut>External sample content, not a recording or endorsement from this demo tutor. Past exams are MIT's openly published materials, not UCC past questions.</small></div>`:''}
+${un?`<div class=card><b>Contact details</b><p>📞 ${esc(un.phone)}<br>✉️ ${esc(un.email)}</p><small class=mut>Unlocked. You can revisit this any time.</small></div>`:S.role=='student'?`<div class=card><b>Contact details are locked</b><p class=mut>Pay a one-time GHS ${D.fee} access fee to see this tutor’s phone and email. The fee goes to TutorConnect, not the tutor.</p><button class=pri data-a=unl data-v=${id}>Unlock contact details (GHS ${D.fee})</button></div>`:!S.role?`<div class=card><p class=mut>Log in as a student to unlock contact details.</p><button class=pri data-a=go data-v=login>Log in</button></div>`:''}
+${un?`<div class=card><b>Rate this tutor</b>${rv.some(x=>x.s==S.id)?'<p class=mut>You have already reviewed this tutor.</p>':`<form data-f=rv><input type=hidden name=t value=${id}><label>Rating</label><select name=r>${[5,4,3,2,1].map(n=>`<option value=${n}>${n} star${n>1?'s':''}</option>`).join('')}</select><label>Comment (optional)</label><textarea name=c rows=2></textarea><button class=pri>Submit review</button></form>`}</div>`:''}
+<div class=card><b>Reviews</b>${rv.length?rv.map(x=>`<p>${'★'.repeat(x.r)}${'☆'.repeat(5-x.r)} ${esc(x.c)}<br><small class=mut>${fd(x.at)}</small></p>`).join(''):'<p class=mut>No reviews yet.</p>'}${S.role=='student'?`<button class=dng data-a=rpm data-v=${id}>Report this tutor</button>`:''}</div>`}
+function loginV(){const login=authMode=='login';return`<div class=auth-shell>
+<section class=auth-story aria-label="TutorConnect introduction">
+<div class=story-kicker><span class=brand-mark>tc</span>Course-focused learning, reimagined</div>
+<div class=story-copy><div class=story-kicker>LESS GUESSWORK. MORE MOMENTUM.</div><h1>Your course.<br><em>Your tutor.</em><br>Your next step.</h1><p>Meet trusted tutors who teach the exact courses on your timetable. Compare experience, availability and student feedback in one clear place.</p></div>
+<div class=story-feature><span class=feature-overline>OFFICIAL ACADEMIC STRUCTURE</span><div class=feature-person><div class=feature-avatar>UCC</div><div class=feature-details><strong>University of Cape Coast</strong><small>Colleges · Schools · Departments</small></div></div><div class=feature-course><b>Clear source labels</b><small>Sample topics are not official UCC course codes.</small></div></div>
+<div class=story-footer><div class=story-stat><b>5</b><span>official UCC colleges</span></div><div class=story-stat><b>Course-first</b><span>search, not guesswork</span></div><div class=story-stat><b>Private</b><span>contact stays protected</span></div></div>
+</section>
+<section class=auth-side aria-labelledby=auth-title>
+<div class=auth-kicker><span>YOUR NEXT STEP STARTS HERE</span><span class=preview-pill>Local preview</span></div>
+<h2 id=auth-title>${login?'Welcome back':'Find your place here'}</h2><p class=auth-intro>${login?'Sign in to pick up where your learning journey left off.':'Create a free profile and find the support that fits your course.'}</p>
+<div class=auth-switch role=tablist aria-label="Account access"><button type=button role=tab aria-selected=${login} data-a=am data-v=login>Log in</button><button type=button role=tab aria-selected=${!login} data-a=am data-v=signup>Create account</button></div>
+${login?`<form data-f=si class=auth-form><div class=auth-field><label for=auth-email>Email address</label><input id=auth-email name=email type=email placeholder="you@university.edu" autocomplete=email required></div><div class=auth-field><label for=auth-password>Password</label><input id=auth-password name=password type=password placeholder="Enter your password" autocomplete=current-password required></div><button class="pri auth-submit">Log in</button><p class=auth-note>Authentication is simulated in this preview. Choose a demo profile below to explore each role.</p></form>
+<div class=auth-divider>or jump straight into the demo</div><div class=demo-stack>
+<button class=demo-account data-a=li data-v=student data-w=s1><span class=demo-avatar>ST</span><span class=demo-copy><strong>Continue as a student</strong><small>Demo student · Search tutors and unlock contacts</small></span><span class=demo-arrow>→</span></button>
+<button class=demo-account data-a=li data-v=tutor data-w=t2><span class=demo-avatar>TU</span><span class=demo-copy><strong>Continue as a tutor</strong><small>Sample computing tutor · Manage profile and resources</small></span><span class=demo-arrow>→</span></button>
+<button class=demo-account data-a=li data-v=admin data-w=a1><span class=demo-avatar>AD</span><span class=demo-copy><strong>Continue as administrator</strong><small>Review tutors, reports and activity</small></span><span class=demo-arrow>→</span></button></div>`:
+`<form data-f=su class=auth-form><div class=signup-grid>
+<div class="auth-field wide"><label for=sn>Full name</label><input id=sn name=n autocomplete=name placeholder="e.g. Ama Owusu" required></div>
+<div class=auth-field><label for=sr>I am joining as</label><select id=sr name=r><option value=student>Student</option><option value=tutor>Tutor (requires review)</option></select></div>
+<div class=auth-field><label for=si>Institution</label><select id=si name=i>${D.inst.map(i=>`<option value=${i.id}>${esc(i.name)}</option>`).join('')}</select></div>
+<div class="auth-field wide"><label for=se>Email address</label><input id=se name=e type=email autocomplete=email placeholder="you@university.edu" required></div>
+<div class="auth-field wide"><label for=sp>Phone <span class=mut>(optional; kept private for tutors)</span></label><input id=sp name=p type=tel autocomplete=tel placeholder="+233 ..."></div>
+</div>
+<details class=course-picker><summary>Courses you teach <span class=mut>(tutors only; optional)</span></summary>${D.courses.map(c=>`<label class=ck><input type=checkbox name=c value=${c.id}> ${esc(courseLabel(c))} (${esc(I(c.i))})</label>`).join('')}</details>
+<button class="pri auth-submit">Create my account</button><p class=auth-note>Prototype accounts are saved in this browser only. Tutor profiles start pending review.</p></form>`}
+</section></div>`}
+function profileV(){if(!S.role)return loginV();const p=profileInfo(S.id);return`<div class=page-heading><p class=eyebrow>YOUR ACCOUNT</p><h1>My profile</h1><p class=mut>Update your short bio and photo. Demo changes are stored only in this browser.</p></div><form data-f=me class="card profile-edit"><div class=profile-preview>${p.photo?`<img src="${esc(p.photo)}" alt="Profile photo">`:`<span>${esc((S.name||'M').slice(0,1).toUpperCase())}</span>`}</div><div><label>Display name</label><input value="${esc(S.name||'')}" disabled><label>Short bio</label><textarea name=bio rows=4 maxlength=500 placeholder="A few sentences about you">${esc(p.bio||'')}</textarea><label>Profile picture (JPG, PNG or WebP; up to 1 MB)</label><input name=photo type=file accept="image/jpeg,image/png,image/webp"><button class=pri>Save profile</button></div></form>`}
+function stuV(){const s=D.stu.find(x=>x.id==S.id)||{},my=D.ul.filter(u=>u.s==S.id);let h=tabs(['Overview','Unlocked','Payments','Reviews and reports']);
+if(T==0)h+=`<div class=card><h2>Welcome, ${esc(S.name)}</h2><p class=mut>${esc(I(s.inst)||'')}</p><div class=g>${st(my.length,'Unlocked contacts')}${st(D.py.filter(p=>p.u==S.id&&p.st=='paid').length,'Paid')}</div><button class=pri data-a=go data-v=find>Find tutors</button></div>`+nts();
+if(T==1)h+=my.length?my.map(u=>{const t=TT(u.t),c=srv(S.id,u.t);return`<div class=card><b>${esc(t.name)}</b><br>📞 ${esc(c.phone)}<br>✉️ ${esc(c.email)}<br><small class=mut>Unlocked ${fd(u.at)}</small><br><button data-a=tut data-v=${t.id}>View profile</button></div>`}).join(''):empty('No unlocked tutors yet. Find a tutor and unlock their contact details.');
+if(T==2)h+=pyT(D.py.filter(p=>p.u==S.id));
+if(T==3){const rv=D.rv.filter(x=>x.s==S.id),rp=D.rp.filter(x=>x.s==S.id);h+=`<h3>My reviews</h3>`+(rv.map(x=>`<div class=card>${esc(TT(x.t).name)}: ${'★'.repeat(x.r)} ${esc(x.c)}</div>`).join('')||empty('No reviews yet.'))+`<h3>My reports</h3>`+(rp.map(x=>`<div class=card>${esc(TT(x.t).name)}: ${esc(x.cat)} ${bd(x.st)}</div>`).join('')||empty('No reports submitted.'))}
+return h}
+function tutDV(){const t=TT(S.id);if(!t)return empty('Profile not found.');let h=tabs(['Overview','Profile','Courses','Premium','Feedback']);
+if(T==0)h+=`<div class=card><h2>${esc(t.name)}</h2>${bd(t.st)} ${prem(t)?'<span class="badge warn">Premium until '+fd(t.pu)+'</span>':'<span class="badge mut">Standard visibility</span>'}${t.st!='approved'?'<p class=mut>You are not searchable until an administrator approves your profile.</p>':''}<div class=g>${st(t.v,'Profile views')}${st(D.ul.filter(u=>u.t==t.id).length,'Contact unlocks')}${st((avg(t.id)||{a:'–'}).a.toFixed?avg(t.id).a.toFixed(1):'–','Average rating')}</div></div>`+nts();
+if(T==1){const v=D.vault[t.id]||{};h+=`<form data-f=pf class=card><label>Biography</label><textarea name=b rows=3>${esc(t.bio)}</textarea><label>Rate (GHS per hour)</label><input name=rate type=number min=0 value=${t.rate}><label>Delivery</label><select name=m>${['Online','In person','Both'].map(x=>`<option ${t.mode==x?'selected':''}>${x}</option>`).join('')}</select><label>Availability</label><input name=av value="${esc(t.av)}"><label>Phone (protected)</label><input name=p value="${esc(v.phone)}"><label>Email (protected)</label><input name=e value="${esc(v.email)}"><button class=pri>Save profile</button></form>`}
+if(T==2){const free=D.courses.filter(c=>!t.cs.some(x=>x.c==c.id));h+=`<div class=card><b>My learning topics</b>${t.cs.map(x=>`<p>${esc(courseLabel(C(x.c)))} (${esc(I(C(x.c).i))}) ${bd(x.a)}</p>`).join('')}</div><form data-f=ad class=card><label>Request another topic</label><select name=c>${free.map(c=>`<option value=${c.id}>${esc(courseLabel(c))} (${esc(I(c.i))})</option>`).join('')}</select><button class=pri>Request approval</button></form>`}
+if(T==3)h+=`<div class=card><b>Premium visibility</b><p class=mut>Get a Featured label and top placement, only in searches for courses you are approved to teach. When premium ends, your profile stays live with standard visibility.</p>${prem(t)?`<p>${bd('active')} until ${fd(t.pu)}</p><button class=dng data-a=cp>Cancel premium</button>`:''}</div>`+D.plans.map(p=>`<div class=card><b>${p.name}</b>: GHS ${p.a} for ${p.days} days<br><button class=pri data-a=sub data-v=${p.id}>Subscribe (sandbox)</button></div>`).join('')+pyT(D.py.filter(p=>p.u==S.id));
+if(T==4)h+=D.rv.filter(x=>x.t==t.id).map(x=>`<div class=card>${'★'.repeat(x.r)} ${esc(x.c)} ${x.st!='pub'?bd('hidden'):''}</div>`).join('')||empty('No feedback yet.');
+return h}
+function admV(){if(S.role!='admin')return empty('Denied: administrator access only.');let h=tabs(['Overview','Applications','Tutors','Reports','Courses','Payments','Audit']);
+const pa=D.tut.flatMap(t=>t.cs.map((x,i)=>({t,x,i})).filter(o=>o.x.a=='pending'&&t.st!='pending'));
+if(T==0)h+=`<div class=g>${st(D.stu.length,'Students')}${st(D.tut.length,'Tutors')}${st(D.tut.filter(t=>t.st=='pending').length+pa.length,'Pending reviews')}${st(D.tut.filter(prem).length,'Premium tutors')}${st('GHS '+D.py.filter(p=>p.st=='paid').reduce((s,p)=>s+p.a,0),'Revenue (sandbox)')}${st(D.rp.filter(r=>r.st!='resolved').length,'Open reports')}</div>`;
+if(T==1){const pt=D.tut.filter(t=>t.st=='pending');h+='<h3>Tutor applications</h3>'+(pt.map(t=>`<div class=card><b>${esc(t.name)}</b><br>${esc(t.q)}<br><small>${t.cs.map(x=>esc(C(x.c).code)).join(', ')}</small><div class=row><button class=pri data-a=ap data-v=${t.id} data-w=approved>Approve</button><button class=dng data-a=ap data-v=${t.id} data-w=rejected>Reject</button></div></div>`).join('')||empty('No pending applications.'))+'<h3>Course associations</h3>'+(pa.map(o=>`<div class=card><b>${esc(o.t.name)}</b> wants ${esc(C(o.x.c).code)} (${esc(I(C(o.x.c).i))})<div class=row><button class=pri data-a=ac data-v=${o.t.id} data-w=${o.i} data-y=approved>Approve</button><button class=dng data-a=ac data-v=${o.t.id} data-w=${o.i} data-y=rejected>Reject</button></div></div>`).join('')||empty('No pending course requests.'))}
+if(T==2)h+=D.tut.map(t=>`<div class=card><b>${esc(t.name)}</b> ${bd(t.st)} ${prem(t)?'<span class="badge warn">Premium</span>':''}<div class=row>${t.st=='approved'?`<button data-a=ts data-v=${t.id} data-w=Suspend>Suspend</button>`:''}${t.st=='suspended'||t.st=='removed'?`<button data-a=ts data-v=${t.id} data-w=Restore>Restore</button>`:''}${t.st!='removed'&&t.st!='pending'?`<button class=dng data-a=ts data-v=${t.id} data-w=Remove>Remove</button>`:''}</div></div>`).join('');
+if(T==3){h+='<h3>Reports</h3>'+(D.rp.map(r=>`<div class=card><b>${esc(TT(r.t).name)}</b> ${bd(r.st)}<br>${esc(r.cat)}<br><small>${esc(r.d)}</small>${r.st!='resolved'?`<br><button class=pri data-a=rr data-v=${r.id}>Review and decide</button>`:`<br><small class=mut>Outcome: ${esc(r.res)}</small>`}</div>`).join('')||empty('No reports.'))+'<h3>Reviews</h3>'+D.rv.map(x=>`<div class=card>${esc(TT(x.t).name)}: ${'★'.repeat(x.r)} ${esc(x.c)} ${x.st!='pub'?bd('hidden'):''}<br><button data-a=hr data-v=${x.id}>${x.st=='pub'?'Hide':'Show'}</button></div>`).join('')}
+if(T==4)h+=`<form data-f=nc class=card><h3>Add a verified course</h3><p class=mut>Only enter official UCC course codes from a teaching schedule. Current sample topics are not official units.</p><select name=i>${D.inst.map(i=>`<option value=${i.id}>${esc(i.name)}</option>`).join('')}</select><input name=code placeholder="Course code" required><input name=title placeholder="Course title" required><button class=pri>Add course</button></form><div class="card sc"><table>${D.courses.map(c=>`<tr><td>${c.sample?'External sample':esc(c.code)}<td>${esc(c.title)}<td>${esc(I(c.i))}</tr>`).join('')}</table></div>`;
+if(T==5)h+=`<form data-f=fee class=card><label>Contact-access fee (GHS)</label><input name=f type=number min=1 value=${D.fee}><button class=pri>Save fee</button></form>`+pyT(D.py);
+if(T==6)h+=D.au.length?`<div class="card sc"><table><tr><th>When<th>Who<th>Action<th>Target<th>Reason</tr>${D.au.map(a=>`<tr><td>${fd(a.at)}<td>${esc(a.who)}<td>${esc(a.a)}<td>${esc(a.t)}<td>${esc(a.r)}</tr>`).join('')}</table></div>`:empty('No admin actions recorded yet.');
+return h}
+function view(){const n=V.n;if(n=='find')return findV();if(n=='tutor')return tutorV(V.id);if(n=='profile')return profileV();if(n=='login')return loginV();
+if(n=='dash')return !S.role?loginV():S.role=='student'?stuV():S.role=='tutor'?tutDV():admV();return homeV()}
+const R=()=>{$('#app').innerHTML=hdr()+'<main class="'+(V.n=='login'?'auth-main':'')+'">'+view()+'</main><footer class=mut>Demo only · Tutor and course samples are fictional · Payments are simulated · Contact administrators: <a href="mailto:baidoomensahama@gmail.com">baidoomensahama@gmail.com</a> · <a href="tel:0245664985">0245664985</a><br><button data-a=rst>Reset demo data</button> '+(S.role&&S.role!='admin'?'<button data-a=hk>Test: try an admin action</button>':'')+'</footer>';save()};
+const A={go(v){V={n:v};if(v=='login')authMode='login';T=0;R();scrollTo(0,0)},am(v){authMode=v=='signup'?'signup':'login';R()},tb(v){T=+v;R()},bk(){V=V.p||{n:'find'};R()},cm,
+tut(id){const t=TT(id);if(t&&S.id!=id)t.v++;V={n:'tutor',id,p:V.n=='tutor'?V.p:V};R();scrollTo(0,0)},
+pk(c){Q.q=c;R()},lo(){S={role:null};V={n:'login'};authMode='login';R()},li(r,id){S={role:r,id,name:r=='admin'?'Administrator':(r=='student'?D.stu:D.tut).find(x=>x.id==id).name};D.profiles[id]=D.profiles[id]||{bio:'',photo:''};V={n:'dash'};T=0;R()},
+rst(){D=seed();S={role:null};V={n:'login'};authMode='login';R();toast('Demo data reset')},hk(){need('admin')},
+unl(id){if(!need('student'))return;if(srv(S.id,id))return;const p={id:'P'+D.n++,u:S.id,k:'c',a:D.fee,t:id,st:'pending',ref:'SBX-'+Math.random().toString(36).slice(2,8).toUpperCase(),at:now()};D.py.push(p);payM(p)},
+sub(id){if(!need('tutor'))return;const pl=D.plans.find(x=>x.id==id),p={id:'P'+D.n++,u:S.id,k:'p',a:pl.a,pl,st:'pending',ref:'SBX-'+Math.random().toString(36).slice(2,8).toUpperCase(),at:now()};D.py.push(p);payM(p)},
+pay(id,res){const p=D.py.find(x=>x.id==id);cm();if(!p||p.st!='pending')return; /* idempotent: only pending payments change state */
+p.st=res=='ok'?'paid':'failed';if(p.st=='paid'){if(p.k=='c'){if(!D.ul.some(u=>u.s==p.u&&u.t==p.t))D.ul.push({s:p.u,t:p.t,p:p.id,st:'paid',at:now()});note(p.t,'A student unlocked your contact details.')}else{const t=TT(p.u);t.pu=Math.max(now(),t.pu||0)+p.pl.days*DAY;note(t.id,'Premium activated: '+p.pl.name+'.')}}
+note(p.u,p.st=='paid'?'Payment '+p.ref+' verified.':'Payment '+p.ref+' failed. Nothing was unlocked.');toast(p.st=='paid'?'Payment verified':'Payment failed. Contact stays locked');R()},
+cp(){TT(S.id).pu=0;R();toast('Premium cancelled')},
+rpm(id){mo(`<form data-f=rp><h3>Report this tutor</h3><input type=hidden name=t value=${id}><label>Reason</label><select name=c><option>Unexpected or misleading charges</option><option>Misleading profile</option><option>Unprofessional conduct</option><option>Poor or non-delivered service</option><option>Other</option></select><label>What happened?</label><textarea name=d rows=4 required></textarea><p class=mut><small>Reports are private. An administrator reviews each one.</small></p><div class=row><button type=button data-a=cm>Cancel</button><button class=pri>Submit report</button></div></form>`)},
+ap(id,d,x){const t=TT(id),go=r=>{if(!need('admin'))return;if(x!=null)t.cs[+x].a=d;else t.st=d;log((x!=null?'Course ':'Profile ')+d,t.name+(x!=null?' / '+C(t.cs[+x].c).code:''),r||'Approved after review');note(t.id,`Your ${x!=null?'course request':'application'} was ${d}.${r?' Reason: '+r:''}`);R()};d=='rejected'?ask('Reject',``,go):go('')},
+ac(id,i,d){A.ap(id,d,i)},
+ts(id,act){const t=TT(id);ask(act+' '+esc(t.name),'',r=>{if(!need('admin'))return;t.st=act=='Suspend'?'suspended':act=='Remove'?'removed':'approved';log(act,t.name,r);note(t.id,`Your profile status is now ${t.st}. Reason: ${r}`);R()})},
+rr(id){const r=D.rp.find(x=>x.id==id);ask('Decide on report',`<p>${esc(r.cat)}: ${esc(r.d)}</p><label>Outcome</label><select name=x><option>No action</option><option>Request clarification</option><option>Warn tutor</option><option>Suspend tutor</option><option>Remove tutor</option></select>`,(why,f)=>{if(!need('admin'))return;const x=f.get('x'),t=TT(r.t);if(x=='Suspend tutor')t.st='suspended';if(x=='Remove tutor')t.st='removed';if(x=='Warn tutor'||x=='Request clarification')note(t.id,x+': '+why);r.st=x=='Request clarification'?'in review':'resolved';r.res=x;log(x,t.name,why);note(r.s,r.st=='resolved'?'Your report about '+t.name+' has been resolved.':'Your report is under review.');R()})},
+hr(id){if(!need('admin'))return;const x=D.rv.find(v=>v.id==id);x.st=x.st=='pub'?'hidden':'pub';log('Review '+x.st,TT(x.t).name,'Moderation');R()}};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b){const d=b.dataset;A[d.a](d.v,d.w,d.y)}else if(e.target.id=='m')cm()});
+document.addEventListener('change',e=>{const k=e.target.dataset.k;if(k){Q[k]=e.target.value;R()}});
+function payM(p){const c=p.k=='c';mo(`<h3>${c?'Unlock contact details':'Premium: '+esc(p.pl.name)}</h3><p><span class="badge warn">SANDBOX: no real money is charged</span></p><p>${c?`You pay a platform access fee of <b>GHS ${p.a}</b> to TutorConnect. It reveals this tutor’s phone and email in your account, permanently. It is <b>not</b> the tutor’s lesson fee: agree the rate with the tutor directly.`:`<b>GHS ${p.a}</b> for ${p.pl.days} days of Featured placement in relevant course searches only. Bookings are not guaranteed.`}</p><p class=mut>Reference: ${p.ref}</p><div class=row><button class=pri data-a=pay data-v=${p.id} data-w=ok>Simulate successful payment</button><button data-a=pay data-v=${p.id} data-w=fail>Simulate failed payment</button></div><button data-a=cm>Cancel</button>`)}
+document.addEventListener('submit',e=>{const f=e.target.dataset.f;if(!f)return;e.preventDefault();const x=new FormData(e.target),F={
+si(){toast('Email sign-in is not connected in this local preview. Choose a demo profile below to continue.')},
+sr(){Q.i=+x.get('i');Q.q=x.get('q');V={n:'find'};R()},rs(){cm();RC(x.get('r'),x)},
+su(){const n=x.get('n').trim(),id=(x.get('r')=='student'?'s':'t')+D.n++;if(x.get('r')=='student'){D.stu.push({id,name:n,inst:+x.get('i'),email:String(x.get('e')||'')});S={role:'student',id,name:n}}else{D.tut.push({id,name:n,e:'T',bio:'New tutor, profile in progress.',q:'Awaiting verification',rate:0,mode:'Online',av:'To be set',st:'pending',pu:0,v:0,cs:x.getAll('c').map(c=>({c:+c,a:'pending'})),resources:[]});D.vault[id]={phone:x.get('p'),email:x.get('e')};S={role:'tutor',id,name:n}}D.profiles[id]={bio:'',photo:''};V={n:'dash'};T=0;R();toast('Account created')},
+me(){const bio=String(x.get('bio')||'').trim(),file=x.get('photo'),saveProfile=photo=>{D.profiles[S.id]={bio,photo};R();toast('Profile saved')};if(file instanceof File&&file.size){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>1024*1024)return toast('Choose a JPG, PNG or WebP image up to 1 MB.');const reader=new FileReader();reader.onload=()=>saveProfile(String(reader.result||''));reader.onerror=()=>toast('Could not read the selected photo.');reader.readAsDataURL(file)}else saveProfile(profileInfo(S.id).photo||'')},
+pf(){const t=TT(S.id);t.bio=x.get('b');t.rate=+x.get('rate');t.mode=x.get('m');t.av=x.get('av');D.vault[t.id]={phone:x.get('p'),email:x.get('e')};R();toast('Profile saved')},
+ad(){if(!x.get('c'))return;TT(S.id).cs.push({c:+x.get('c'),a:'pending'});R();toast('Course sent for approval')},
+rv(){const t=x.get('t');if(!srv(S.id,t))return toast('Unlock this tutor before reviewing');if(D.rv.some(v=>v.s==S.id&&v.t==t))return toast('You already reviewed this tutor');if(/\b(idiot|stupid|fool)\b/i.test(x.get('c')))return toast('Please keep feedback respectful');D.rv.push({id:D.n++,s:S.id,t,r:+x.get('r'),c:x.get('c'),st:'pub',at:now()});R();toast('Review submitted')},
+rp(){D.rp.push({id:D.n++,s:S.id,t:x.get('t'),cat:x.get('c'),d:x.get('d'),st:'open',res:''});note(S.id,'Your report was received. An administrator will review it.');cm();R();toast('Report submitted. You will be notified of the outcome')},
+nc(){if(!need('admin'))return;D.courses.push({id:D.n++,i:+x.get('i'),code:x.get('code'),title:x.get('title')});log('Add course',x.get('code'),'Course directory');R()},
+fee(){if(!need('admin'))return;D.fee=+x.get('f');log('Change fee','Contact access','GHS '+D.fee);R();toast('Fee saved')}};F[f]()});
+R();
+</script></body></html>

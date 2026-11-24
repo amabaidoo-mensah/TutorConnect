@@ -1874,7 +1874,7 @@ export default function App() {
       <nav aria-label="Main navigation">
         {!presentationDemo && <a className="nav-link" href="/?demo=1">Presentation demo</a>}
         <button className={section === "resources" ? "nav-link active" : "nav-link"} aria-current={section === "resources" ? "page" : undefined} onClick={() => navigate("resources")}>Courses & resources</button>
-        <button className={section === "programmes" ? "nav-link active" : "nav-link"} aria-current={section === "programmes" ? "page" : undefined} onClick={() => navigate("programmes")}>UCC programmes</button>
+        {(user || (presentationDemo && !demoAuthRequested)) && <button className={section === "programmes" ? "nav-link active" : "nav-link"} aria-current={section === "programmes" ? "page" : undefined} onClick={() => navigate("programmes")}>UCC programmes</button>}
         {profile?.role === "student" && <>
           <button className={section === "discover" ? "nav-link active" : "nav-link"} aria-current={section === "discover" ? "page" : undefined} onClick={() => navigate("discover")}>Find tutors</button>
           <button className={section === "student" ? "nav-link active" : "nav-link"} aria-current={section === "student" ? "page" : undefined} onClick={() => navigate("student")}>My activity</button>

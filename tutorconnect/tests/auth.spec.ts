@@ -4,6 +4,7 @@ test("login and signup modes expose the expected fields", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Log in to TutorConnect" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "UCC programmes" })).toHaveCount(0);
   await expect(page.locator('input[name="e"]')).toHaveAttribute("type", "email");
   await expect(page.locator('input[name="p"]')).toHaveAttribute("minlength", "8");
 

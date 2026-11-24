@@ -180,11 +180,21 @@ Deno.serve(async (request) => {
     if (tutorAccountError) return json({ error: "Could not verify tutor availability." }, 503);
     if (!tutorAccount || tutorAccount.account_status !== "active") return json({ error: "This tutor is not currently available." }, 404);
     const { data: tutorContact, error: tutorContactError } = await db.from("tutor_contacts")
-      .select("phone,email")
+      .select("phone,email,whatsapp_url,instagram_url,facebook_url,linkedin_url,x_url,website_url")
       .eq("tutor_id", tutorId)
       .maybeSingle();
     if (tutorContactError) return json({ error: "Could not verify whether contact details are available." }, 503);
-    if (!tutorContact || (!tutorContact.phone && !tutorContact.email)) {
+    const hasContact = tutorContact && [
+      tutorContact.phone,
+      tutorContact.email,
+      tutorContact.whatsapp_url,
+      tutorContact.instagram_url,
+      tutorContact.facebook_url,
+      tutorContact.linkedin_url,
+      tutorContact.x_url,
+      tutorContact.website_url,
+    ].some((value) => typeof value === "string" && value.trim().length > 0);
+    if (!hasContact) {
       return json({ error: "This tutor has not listed contact details yet." }, 409);
     }
   } else if (body.action === "premium") {

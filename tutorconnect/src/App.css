@@ -192,6 +192,11 @@ textarea { resize: vertical; }
 .profile-photo-preview { width: 128px; height: 128px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 50%; background: var(--pale); color: var(--blue-dark); font-size: 2.6rem; font-weight: 800; box-shadow: 0 8px 22px rgba(48, 76, 196, .1); }
 .profile-photo-preview img { width: 100%; height: 100%; object-fit: cover; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.contact-editor { min-width: 0; margin: 4px 0; padding: 14px; display: grid; gap: 12px; border: 1px solid var(--line); border-radius: 12px; }
+.contact-editor legend { padding: 0 5px; color: var(--ink); font-size: .9rem; font-weight: 800; }
+.contact-editor p { margin: 0; }
+.contact-details { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.contact-details a { font-weight: 700; }
 .premium-panel { border-color: #d7e4ff; background: linear-gradient(140deg, #fff 42%, #f6f9ff); }
 .premium-panel > .row-between { align-items: flex-start; }
 .premium-panel h2 { margin: 4px 0 0; }
@@ -300,6 +305,7 @@ textarea { resize: vertical; }
   .profile-editor { grid-template-columns: 1fr; }
   .profile-photo-column { justify-items: start; }
   .profile-photo-column small { text-align: left; }
+  .contact-editor .form-row { grid-template-columns: 1fr; }
   .plan-options { grid-template-columns: 1fr; }
   .resource-form { grid-template-columns: 1fr; }
   .resource-form label:nth-child(7) { grid-column: auto; }

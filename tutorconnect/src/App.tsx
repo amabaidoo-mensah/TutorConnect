@@ -7,7 +7,23 @@ type Role = "student" | "tutor" | "admin";
 type Section = "discover" | "student" | "tutor" | "admin" | "profile" | "programmes" | "resources";
 type Institution = { id: number; name: string };
 type AcademicUnit = { id: number; name: string; unit_type: string; parent_id: number | null };
-type Profile = { id: string; full_name: string; role: Role; bio: string | null; avatar_path: string | null; avatar_url: string | null; is_verified: boolean };
+type Profile = {
+  id: string;
+  full_name: string;
+  role: Role;
+  bio: string | null;
+  avatar_path: string | null;
+  avatar_url: string | null;
+  is_verified: boolean;
+  phone: string | null;
+  contact_email: string | null;
+  whatsapp_url: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
+  linkedin_url: string | null;
+  x_url: string | null;
+  website_url: string | null;
+};
 type SearchTutor = {
   id: string;
   name: string;
@@ -31,7 +47,17 @@ type TutorResourceWithCourse = TutorResource & { courses: { code: string } | { c
 type CourseLearningResource = { id: number; course_id: number; resource_type: "video" | "notes" | "open_textbook" | "practice" | "past_questions"; title: string; url: string; source_name: string; description: string | null; license_name: string | null; license_url: string | null };
 type SubjectLearningResource = { title: string; kind: string; url: string; source: string; description: string; license?: string; license_url?: string };
 type SubjectLearningResourceGroup = { subject: string; resources: SubjectLearningResource[] };
-type Contact = { tutor_id: string; phone: string | null; email: string | null };
+type ContactDetails = {
+  phone: string | null;
+  email: string | null;
+  whatsapp_url: string | null;
+  instagram_url: string | null;
+  facebook_url: string | null;
+  linkedin_url: string | null;
+  x_url: string | null;
+  website_url: string | null;
+};
+type Contact = ContactDetails & { tutor_id: string };
 type Review = { id: number; tutor_id: string; student_id: string; rating: number; comment: string | null; status: string; created_at: string };
 type Report = { id: number; tutor_id: string; reporter_id: string; category: string; description: string; status: string; resolution: string | null; created_at: string };
 type TutorProfile = { id: string; bio: string | null; qualifications: string | null; rate: number | null; delivery: string | null; availability: string | null; status: string; premium_until: string | null; views: number };
@@ -43,6 +69,24 @@ type AdminTutor = { id: string; bio: string | null; qualifications: string | nul
 type AdminTutorCourse = { id: number; tutor_id: string; status: string; courses: Course | null };
 type AdminProfile = { id: string; full_name: string | null; role: Role };
 type AdminAction = { id: number; admin_id: string; target_id: string; action: string; reason: string; created_at: string };
+
+function ContactLinks({ contact }: { contact: ContactDetails }) {
+  const phoneHref = contact.phone?.replace(/[^\d+]/g, "");
+  return <div className="contact-details">
+    {contact.phone ? <a href={`tel:${phoneHref}`}>Phone: {contact.phone}</a> : <span>Phone not listed</span>}
+    {contact.email ? <a href={`mailto:${contact.email}`}>Email: {contact.email}</a> : <span>Email not listed</span>}
+    {contact.whatsapp_url && <a href={contact.whatsapp_url} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+    {contact.instagram_url && <a href={contact.instagram_url} target="_blank" rel="noopener noreferrer">Instagram</a>}
+    {contact.facebook_url && <a href={contact.facebook_url} target="_blank" rel="noopener noreferrer">Facebook</a>}
+    {contact.linkedin_url && <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer">LinkedIn</a>}
+    {contact.x_url && <a href={contact.x_url} target="_blank" rel="noopener noreferrer">X</a>}
+    {contact.website_url && <a href={contact.website_url} target="_blank" rel="noopener noreferrer">Website</a>}
+  </div>;
+}
+
+function optionalFormValue(values: FormData, name: string) {
+  return String(values.get(name) || "").trim() || null;
+}
 type AssistantMessage = { role: "user" | "model"; text: string };
 
 function isResponseLike(value: unknown): value is Pick<Response, "clone"> {
@@ -585,7 +629,7 @@ export default function App() {
     setProfileLoadError("");
     try {
       let { data, error } = await client.from("profiles")
-        .select("id,full_name,role,bio,avatar_path,account_status")
+        .select("id,full_name,role,bio,avatar_path,account_status,phone,contact_email,whatsapp_url,instagram_url,facebook_url,linkedin_url,x_url,website_url")
         .eq("id", id)
         .maybeSingle();
       if (error) throw new Error(error.message);
@@ -596,7 +640,7 @@ export default function App() {
           throw new Error(`Your account is signed in, but its profile could not be created. Apply Supabase migration 009, then retry. ${repairError.message}`);
         }
         const retry = await client.from("profiles")
-          .select("id,full_name,role,bio,avatar_path,account_status")
+          .select("id,full_name,role,bio,avatar_path,account_status,phone,contact_email,whatsapp_url,instagram_url,facebook_url,linkedin_url,x_url,website_url")
           .eq("id", id)
           .maybeSingle();
         if (retry.error) throw new Error(retry.error.message);
@@ -641,6 +685,14 @@ export default function App() {
         avatar_path: data.avatar_path,
         avatar_url: avatarUrl,
         is_verified: isVerified,
+        phone: data.phone ?? null,
+        contact_email: data.contact_email ?? null,
+        whatsapp_url: data.whatsapp_url ?? null,
+        instagram_url: data.instagram_url ?? null,
+        facebook_url: data.facebook_url ?? null,
+        linkedin_url: data.linkedin_url ?? null,
+        x_url: data.x_url ?? null,
+        website_url: data.website_url ?? null,
       });
     } catch (error) {
       if (requestId !== profileLoadRequest.current) return;
@@ -912,7 +964,8 @@ export default function App() {
         setNotice(error.message);
       } else if (data?.status === "paid" && data.tutor_id) {
         const { data: contact, error: contactError } = await client.from("tutor_contacts")
-          .select("tutor_id,phone,email").eq("tutor_id", data.tutor_id).maybeSingle();
+          .select("tutor_id,phone,email,whatsapp_url,instagram_url,facebook_url,linkedin_url,x_url,website_url")
+          .eq("tutor_id", data.tutor_id).maybeSingle();
         if (contactError) setNotice(`Payment verified, but contact details could not be loaded: ${contactError.message}`);
         else if (contact) {
           setRecentlyUnlockedContact(contact);
@@ -1116,7 +1169,9 @@ export default function App() {
         setResourcesByTutor({});
       }
       if (user && ids.length) {
-        const { data: unlocked, error: contactError } = await client.from("tutor_contacts").select("tutor_id,phone,email").in("tutor_id", ids);
+        const { data: unlocked, error: contactError } = await client.from("tutor_contacts")
+          .select("tutor_id,phone,email,whatsapp_url,instagram_url,facebook_url,linkedin_url,x_url,website_url")
+          .in("tutor_id", ids);
         if (contactError) setNotice(contactError.message);
         else setContacts(Object.fromEntries((unlocked ?? []).map((contact) => [contact.tutor_id, contact])));
       } else {
@@ -1263,7 +1318,9 @@ export default function App() {
     if (!supabase) return;
     const [profileResult, contactResult, coursesResult, reviewsResult, statsResult, resourcesResult, creditsResult] = await Promise.all([
       supabase.from("tutor_profiles").select("id,bio,qualifications,rate,delivery,availability,status,premium_until,views").eq("id", id).maybeSingle(),
-      supabase.from("tutor_contacts").select("tutor_id,phone,email").eq("tutor_id", id).maybeSingle(),
+      supabase.from("tutor_contacts")
+        .select("tutor_id,phone,email,whatsapp_url,instagram_url,facebook_url,linkedin_url,x_url,website_url")
+        .eq("tutor_id", id).maybeSingle(),
       supabase.from("tutor_courses").select("id,status,courses(id,institution_id,code,title,academic_unit_id,source_url)").eq("tutor_id", id).order("id"),
       supabase.from("reviews").select("id,tutor_id,student_id,rating,comment,status,created_at").eq("tutor_id", id).order("created_at", { ascending: false }),
       supabase.rpc("tutor_dashboard_stats"),
@@ -1296,6 +1353,16 @@ export default function App() {
     const values = new FormData(event.currentTarget);
     const fullName = String(values.get("full_name") || "").trim();
     const bio = String(values.get("personal_bio") || "").trim();
+    const contactUpdates = profile.role === "student" ? {
+      phone: optionalFormValue(values, "contact_phone"),
+      contact_email: optionalFormValue(values, "contact_email"),
+      whatsapp_url: optionalFormValue(values, "whatsapp_url"),
+      instagram_url: optionalFormValue(values, "instagram_url"),
+      facebook_url: optionalFormValue(values, "facebook_url"),
+      linkedin_url: optionalFormValue(values, "linkedin_url"),
+      x_url: optionalFormValue(values, "x_url"),
+      website_url: optionalFormValue(values, "website_url"),
+    } : {};
     const avatar = values.get("avatar");
     let nextAvatarPath = profile.avatar_path;
     if (avatar instanceof File && avatar.size > 0) {
@@ -1315,7 +1382,12 @@ export default function App() {
     } else {
       setBusy(true);
     }
-    const { error: updateError } = await supabase.from("profiles").update({ full_name: fullName, bio, avatar_path: nextAvatarPath }).eq("id", profile.id);
+    const { error: updateError } = await supabase.from("profiles").update({
+      full_name: fullName,
+      bio,
+      avatar_path: nextAvatarPath,
+      ...contactUpdates,
+    }).eq("id", profile.id);
     if (updateError) {
       if (nextAvatarPath && nextAvatarPath !== profile.avatar_path) {
         const { error: cleanupError } = await supabase.storage.from("profile-photos").remove([nextAvatarPath]);
@@ -1337,7 +1409,7 @@ export default function App() {
       if (photoError) successNotice = `Profile saved, but the photo preview could not be loaded: ${photoError.message}`;
       else avatarUrl = photo.signedUrl;
     }
-    setProfile({ ...profile, full_name: fullName, bio, avatar_path: nextAvatarPath, avatar_url: avatarUrl });
+    setProfile({ ...profile, full_name: fullName, bio, avatar_path: nextAvatarPath, avatar_url: avatarUrl, ...contactUpdates });
     if (avatarPreviewUrl.current) URL.revokeObjectURL(avatarPreviewUrl.current);
     avatarPreviewUrl.current = null;
     setAvatarPreview(null);
@@ -1541,22 +1613,25 @@ export default function App() {
       setNotice(profileError.message);
       return;
     }
-    const { error: contactError } = await supabase.from("tutor_contacts").upsert({
+    const nextContact: Contact = {
       tutor_id: profile.id,
-      phone: String(values.get("phone")).trim(),
-      email: String(values.get("contact_email")).trim(),
-    }, { onConflict: "tutor_id" });
+      phone: optionalFormValue(values, "phone"),
+      email: optionalFormValue(values, "contact_email"),
+      whatsapp_url: optionalFormValue(values, "whatsapp_url"),
+      instagram_url: optionalFormValue(values, "instagram_url"),
+      facebook_url: optionalFormValue(values, "facebook_url"),
+      linkedin_url: optionalFormValue(values, "linkedin_url"),
+      x_url: optionalFormValue(values, "x_url"),
+      website_url: optionalFormValue(values, "website_url"),
+    };
+    const { error: contactError } = await supabase.from("tutor_contacts").upsert(nextContact, { onConflict: "tutor_id" });
     setBusy(false);
     if (contactError) {
       setNotice(`Tutor profile saved, but contact details were not saved: ${contactError.message}`);
       await loadTutorDashboard(profile.id);
       return;
     }
-    setTutorContact({
-      tutor_id: profile.id,
-      phone: String(values.get("phone")).trim() || null,
-      email: String(values.get("contact_email")).trim() || null,
-    });
+    setTutorContact(nextContact);
     setNotice("Profile and contact details saved.");
     await loadTutorDashboard(profile.id);
   }
@@ -1947,7 +2022,7 @@ export default function App() {
       <p>{profileLoading ? "Your sign-in is active. We’re loading your TutorConnect profile." : profileLoadError || "Your sign-in is active, but the profile has not loaded."}</p>
       {!profileLoading && <button className="button button-primary" type="button" onClick={() => user && void loadProfile(user.id)}>Retry profile loading</button>}
     </section></main> : profile && section === "profile" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">YOUR ACCOUNT</p><h1>My profile{profile.is_verified && <VerifiedBadge label="TutorConnect verified member" />}</h1><p className="muted">Add a short bio and photo. Your profile details are available to you; tutor photos are shown on approved tutor listings.</p>
+      <section className="page-heading"><p className="eyebrow">YOUR ACCOUNT</p><h1>My profile{profile.is_verified && <VerifiedBadge label="TutorConnect verified member" />}</h1><p className="muted">Add a short bio and photo. Student contact details are private; tutor contact links are shown only after a student unlocks them.</p>
         {profile.is_verified && <p className="verified-profile-note">Your account is verified based on active account status and confirmed payment.</p>}
       </section>
       <section className="panel profile-editor">
@@ -1958,6 +2033,24 @@ export default function App() {
         <form className="stack-form" onSubmit={(event) => void savePersonalProfile(event)}>
           <label>Full name<input name="full_name" defaultValue={profile.full_name} autoComplete="name" required maxLength={120} /></label>
           <label>Short bio<textarea name="personal_bio" defaultValue={profile.bio || ""} rows={4} maxLength={500} placeholder="A few sentences about you" /></label>
+          {profile.role === "student" && <fieldset className="contact-editor">
+            <legend>Contact details and social links</legend>
+            <p className="muted">Only you and authorized administrators can view these details. They are not shown to tutors or other students.</p>
+            <div className="form-row">
+              <label>Phone<input name="contact_phone" type="tel" autoComplete="tel" defaultValue={profile.phone || ""} maxLength={40} /></label>
+              <label>Contact email<input name="contact_email" type="email" autoComplete="email" defaultValue={profile.contact_email || ""} maxLength={320} /></label>
+            </div>
+            <label>WhatsApp link<input name="whatsapp_url" type="url" defaultValue={profile.whatsapp_url || ""} maxLength={2048} placeholder="https://wa.me/…" /></label>
+            <div className="form-row">
+              <label>Instagram profile<input name="instagram_url" type="url" defaultValue={profile.instagram_url || ""} maxLength={2048} placeholder="https://instagram.com/…" /></label>
+              <label>Facebook profile<input name="facebook_url" type="url" defaultValue={profile.facebook_url || ""} maxLength={2048} placeholder="https://facebook.com/…" /></label>
+            </div>
+            <div className="form-row">
+              <label>LinkedIn profile<input name="linkedin_url" type="url" defaultValue={profile.linkedin_url || ""} maxLength={2048} placeholder="https://linkedin.com/in/…" /></label>
+              <label>X profile<input name="x_url" type="url" defaultValue={profile.x_url || ""} maxLength={2048} placeholder="https://x.com/…" /></label>
+            </div>
+            <label>Website<input name="website_url" type="url" defaultValue={profile.website_url || ""} maxLength={2048} placeholder="https://…" /></label>
+          </fieldset>}
           <label>Profile photo<input ref={avatarInputRef} name="avatar" type="file" accept="image/jpeg,image/png,image/webp" onChange={previewProfilePhoto} /></label>
           <small className="muted">Choose a JPG, PNG or WebP image up to 5 MB. Preview it here, then save to upload or replace your photo.</small>
           <div className="profile-actions">
@@ -1970,7 +2063,7 @@ export default function App() {
       <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "DISCOVER"}</p><h1>{presentationDemo ? "Explore sample tutor profiles" : "Find a tutor for your course"}</h1><p className="muted">{presentationDemo ? "These fictional profiles show how course- and department-matched tutor discovery works." : "Search only approved tutors who teach the selected course and academic unit."}</p></section>
       {recentlyUnlockedContact && <section className="panel contact-box" aria-live="polite">
         <h2>Payment confirmed — tutor contact unlocked</h2>
-        <p>{recentlyUnlockedContact.phone || "Phone not listed"} · {recentlyUnlockedContact.email || "Email not listed"}</p>
+        <ContactLinks contact={recentlyUnlockedContact} />
         <p className="muted">This contact remains available on the tutor’s card after you search again.</p>
       </section>}
       <form className="search-panel" onSubmit={(event) => void searchSubmit(event)}>
@@ -1999,7 +2092,7 @@ export default function App() {
             <div className="unit-label">{[tutor.college, tutor.school, tutor.department].filter(Boolean).join(" / ") || "Academic unit not assigned"}</div>
             <p className="tutor-meta">{tutor.avg_rating ? `★ ${tutor.avg_rating.toFixed(1)} (${tutor.review_count} reviews)` : "No reviews yet"} · {tutor.rate == null ? "Rate not listed" : `GHS ${tutor.rate}/hr`} · {tutor.delivery || "Delivery to be confirmed"}</p>
             {matchingResources.length > 0 && <div className="resource-list"><h3>Teaching previews & learning resources</h3>{matchingResources.map((resource) => <a key={resource.id} href={resource.signed_url || resource.url || undefined} target="_blank" rel="noreferrer"><span>{resource.course_code ? `${resource.course_code} · ` : "General · "}{resourceLabel(resource.resource_type)}</span><b>{resource.title}</b>{resource.description && <small>{resource.description}</small>}</a>)}<small>Course links are shown only for the matching subjects. Third-party materials are identified by their source.</small></div>}
-            {contacts[tutor.id] ? <div className="contact-box"><b>Contact unlocked</b><div>{contacts[tutor.id].phone || "Phone not listed"}</div><div>{contacts[tutor.id].email || "Email not listed"}</div></div>
+            {contacts[tutor.id] ? <div className="contact-box"><b>Contact unlocked</b><ContactLinks contact={contacts[tutor.id]} /></div>
               : presentationDemo ? <button className="button button-outline" type="button" disabled>Contact unlock disabled in demo</button>
                 : <button className="button button-primary" disabled={!profile || busy} onClick={() => void unlockContact(tutor.id)}>Unlock contact · GHS 10</button>}
             {profile?.role === "student" && contacts[tutor.id] && <div className="feedback-grid">
@@ -2050,7 +2143,24 @@ export default function App() {
           <div className="form-row"><label>Hourly rate (GHS)<input name="rate" type="number" min="0" step="0.01" defaultValue={tutorProfile?.rate ?? ""} required /></label>
             <label>Delivery<select name="delivery" defaultValue={tutorProfile?.delivery || "Online"}><option>Online</option><option>In person</option><option>Both</option></select></label></div>
           <label>Availability<input name="availability" defaultValue={tutorProfile?.availability || ""} maxLength={200} /></label>
-          <div className="form-row"><label>Phone<input name="phone" type="tel" defaultValue={tutorContact?.phone || ""} /></label><label>Contact email<input name="contact_email" type="email" defaultValue={tutorContact?.email || user?.email || ""} /></label></div>
+          <fieldset className="contact-editor">
+            <legend>Contact details and social links</legend>
+            <p className="muted">Students can see these details only after they unlock your tutor contact.</p>
+            <div className="form-row">
+              <label>Phone<input name="phone" type="tel" autoComplete="tel" defaultValue={tutorContact?.phone || ""} maxLength={40} /></label>
+              <label>Contact email<input name="contact_email" type="email" autoComplete="email" defaultValue={tutorContact?.email || user?.email || ""} maxLength={320} /></label>
+            </div>
+            <label>WhatsApp link<input name="whatsapp_url" type="url" defaultValue={tutorContact?.whatsapp_url || ""} maxLength={2048} placeholder="https://wa.me/…" /></label>
+            <div className="form-row">
+              <label>Instagram profile<input name="instagram_url" type="url" defaultValue={tutorContact?.instagram_url || ""} maxLength={2048} placeholder="https://instagram.com/…" /></label>
+              <label>Facebook profile<input name="facebook_url" type="url" defaultValue={tutorContact?.facebook_url || ""} maxLength={2048} placeholder="https://facebook.com/…" /></label>
+            </div>
+            <div className="form-row">
+              <label>LinkedIn profile<input name="linkedin_url" type="url" defaultValue={tutorContact?.linkedin_url || ""} maxLength={2048} placeholder="https://linkedin.com/in/…" /></label>
+              <label>X profile<input name="x_url" type="url" defaultValue={tutorContact?.x_url || ""} maxLength={2048} placeholder="https://x.com/…" /></label>
+            </div>
+            <label>Website<input name="website_url" type="url" defaultValue={tutorContact?.website_url || ""} maxLength={2048} placeholder="https://…" /></label>
+          </fieldset>
           <button className="button button-primary" disabled={busy}>{busy ? "Saving…" : "Save profile"}</button>
         </form></section>
         <section className="panel"><h2>My courses</h2><p className="muted">You can teach multiple courses. Request approval for each course you teach; approved courses appear together on your tutor profile.</p>

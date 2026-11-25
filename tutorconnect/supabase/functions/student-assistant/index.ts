@@ -96,6 +96,7 @@ Deno.serve(async (req) => {
   ].join(" ");
 
   let geminiResponse: Response;
+  const timeoutSignal = AbortSignal.timeout(25000);
   try {
     geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
@@ -108,24 +109,35 @@ Deno.serve(async (req) => {
             role: message.role,
             parts: [{ text: message.text }],
           })),
-          generationConfig: { maxOutputTokens: 700, temperature: 0.6 },
+          generationConfig: {
+            maxOutputTokens: 700,
+            temperature: 0.6,
+            thinkingConfig: { thinkingLevel: "low" },
+          },
         }),
-        signal: AbortSignal.timeout(60000),
+        signal: timeoutSignal,
       },
     );
   } catch (error) {
-    if (error instanceof Error && error.name === "TimeoutError") {
+    if (timeoutSignal.aborted || (error instanceof Error && error.name === "TimeoutError")) {
       return response({ error: "The AI response took too long. Please try again with a shorter question." }, 504);
     }
+    console.error("Gemini request failed before returning a response", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
     return response({ error: "The AI service could not be reached. Please try again or contact an administrator." }, 502);
   }
 
   if (!geminiResponse.ok) {
+    console.error("Gemini returned an unsuccessful response", { status: geminiResponse.status });
     if (geminiResponse.status === 429) {
       return response({ error: "The Gemini free-tier limit is temporarily reached. Please try again later." }, 429);
     }
     if (geminiResponse.status === 401 || geminiResponse.status === 403) {
       return response({ error: "The Gemini API key needs to be checked by the administrator." }, 503);
+    }
+    if (geminiResponse.status === 408 || geminiResponse.status === 504) {
+      return response({ error: "The AI response took too long. Please try again with a shorter question." }, 504);
     }
     return response({ error: "The AI service could not answer right now. Please try again later." }, 502);
   }
@@ -136,6 +148,9 @@ Deno.serve(async (req) => {
   try {
     result = await geminiResponse.json();
   } catch {
+    if (timeoutSignal.aborted) {
+      return response({ error: "The AI response took too long. Please try again with a shorter question." }, 504);
+    }
     return response({ error: "The AI service returned an unreadable response. Please try again." }, 502);
   }
 

@@ -42,7 +42,7 @@ To enable AI chat:
 
 For zero-cost AI usage, create the key in a Google AI Studio project on the Free tier and do not attach a billing account. This function calls Gemini 3.8 Flash only; it has no paid-model fallback or paid search/grounding integration. Google's free quota can change or run out, so requests may be rejected or throttled until quota resets; no free-tier setup can guarantee unlimited availability. In addition to Google's limits, the function enforces per-user request limits (10 per minute and 60 per day) and bounds message size and response length.
 
-Gemini requests may take up to 60 seconds; timeouts return a specific retry suggestion instead of a generic gateway error. Deploying the web app through Netlify does not deploy this Supabase Edge Function; after changing its source, redeploy it separately with the command above. Set Netlify's `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to the same Supabase project and trigger a new deploy after changing them; these values are compiled into the static app at build time.
+The function requests low thinking for quicker everyday study answers and stops waiting after 25 seconds, returning a retry suggestion instead of waiting for the gateway timeout. Deploying the web app through Netlify does not deploy this Supabase Edge Function; after changing its source, redeploy it separately with the command above. Set Netlify's `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to the same Supabase project and trigger a new deploy after changing them; these values are compiled into the static app at build time.
 
 ## Validation
 

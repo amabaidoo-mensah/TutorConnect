@@ -85,3 +85,18 @@ test("assistant shows server errors and lets the student retry", async ({ page }
   await expect(page.getByText("Try again in a moment.")).toBeVisible();
   expect(attempts).toBe(2);
 });
+
+test("assistant stops thinking when its request exceeds the client timeout", async ({ page }) => {
+  await signInStudent(page);
+  await page.clock.install();
+  await page.route("**/functions/v1/student-assistant", () => {});
+
+  await page.getByLabel("Your question").fill("What is a computer?");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByText("Thinking…")).toBeVisible();
+
+  await page.clock.fastForward(65_000);
+
+  await expect(page.getByRole("alert")).toHaveText("The assistant is taking longer than expected. Please try again.");
+  await expect(page.getByText("Thinking…")).not.toBeVisible();
+});

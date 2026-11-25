@@ -88,6 +88,7 @@ function optionalFormValue(values: FormData, name: string) {
   return String(values.get(name) || "").trim() || null;
 }
 type AssistantMessage = { role: "user" | "model"; text: string };
+const assistantRequestTimeoutMs = 65_000;
 
 function isResponseLike(value: unknown): value is Pick<Response, "clone"> {
   return Boolean(value && typeof value === "object" && "clone" in value && typeof value.clone === "function");
@@ -716,9 +717,12 @@ export default function App() {
 
     setAssistantLoading(true);
     setAssistantError("");
+    const abortController = new AbortController();
+    const timeoutId = window.setTimeout(() => abortController.abort(), assistantRequestTimeoutMs);
     try {
       const { data, error } = await supabase.functions.invoke<{ reply?: string }>("student-assistant", {
         body: { messages },
+        signal: abortController.signal,
       });
       if (error) throw error;
       if (!data || typeof data.reply !== "string" || !data.reply.trim()) {
@@ -726,8 +730,11 @@ export default function App() {
       }
       setAssistantMessages([...messages, { role: "model", text: data.reply.trim() }]);
     } catch (error) {
-      setAssistantError(await assistantErrorMessage(error));
+      setAssistantError(abortController.signal.aborted
+        ? "The assistant is taking longer than expected. Please try again."
+        : await assistantErrorMessage(error));
     } finally {
+      window.clearTimeout(timeoutId);
       setAssistantLoading(false);
     }
   }

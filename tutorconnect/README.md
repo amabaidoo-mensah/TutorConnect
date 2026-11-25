@@ -30,26 +30,16 @@ Email confirmation may be enabled in Supabase Auth. In that case, new users must
 
 Publishing a tutor resource costs GHS 50 per resource. A verified payment creates one publishing credit; each credit can publish one tutor resource and cannot be reused after deletion. Approved tutors can upload a video or study file (up to 50 MB) to the private `tutor-resources` bucket or publish a YouTube/HTTPS link. The app creates short-lived signed links for authorized students. RLS and a database trigger enforce payment and credit use, so a client-side bypass cannot publish unpaid resources. Apply migration 008 and redeploy the payments function before enabling this flow. After applying migration 010, redeploy `supabase/functions/payments` so checkout accepts tutor social links as contact channels. Configure the Paystack **secret test key** as the `PAYSTACK_SECRET` Supabase Edge Function secret. Never put the secret key in a `VITE_` variable or browser code.
 
-## Student AI assistant
+## AI assistant
 
-The floating student assistant uses Gemini through the `student-assistant` Supabase Edge Function. It can answer general and academic questions across subjects, explain concepts, work through steps, prepare study plans and help with TutorConnect. AI chat requires an active signed-in account; the email, phone and WhatsApp support links remain available to everyone. The Gemini key is read only by the Edge Function and must never be added to a `VITE_` variable or browser code.
-
-To enable AI chat:
-
-1. Apply `006_student_assistant_quota.sql` after migrations 001–005.
-2. Create a Gemini API key in Google AI Studio and add it as the `GEMINI_API_KEY` Edge Function secret in the Supabase project settings. Do not commit the key or share it in chat.
-3. Deploy the function with `supabase functions deploy student-assistant`.
-
-For zero-cost AI usage, create the key in a Google AI Studio project on the Free tier and do not attach a billing account. This function calls Gemini 3.8 Flash only; it has no paid-model fallback or paid search/grounding integration. Google's free quota can change or run out, so requests may be rejected or throttled until quota resets; no free-tier setup can guarantee unlimited availability. In addition to Google's limits, the function enforces per-user request limits (10 per minute and 60 per day) and bounds message size and response length.
-
-The function requests low thinking for quicker everyday study answers and stops waiting after 25 seconds, returning a retry suggestion instead of waiting for the gateway timeout. Deploying the web app through Netlify does not deploy this Supabase Edge Function; after changing its source, redeploy it separately with the command above. Set Netlify's `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to the same Supabase project and trigger a new deploy after changing them; these values are compiled into the static app at build time.
+The AI assistant has been removed because Gemini responses repeatedly timed out. Administrator email, phone and WhatsApp support links remain available in the app footer. The historical `006_student_assistant_quota.sql` migration remains in the repository and live database; its quota objects are no longer used by the app.
 
 ## Validation
 
 - `npm run build` type-checks and builds the application.
 - `npm run test:unit` checks account-verification rules.
 - `npx playwright install chromium` installs the browser for the UI tests.
-- `npm run test:e2e` runs the authentication, presentation-demo, accessibility, assistant-support, catalogue, resource-library, and mobile-layout browser checks. If Chromium cannot be downloaded and Chrome is already installed, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to that browser executable path before running the tests.
+- `npm run test:e2e` runs the authentication, presentation-demo, accessibility, support-contact, catalogue, resource-library, and mobile-layout browser checks. If Chromium cannot be downloaded and Chrome is already installed, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to that browser executable path before running the tests.
 
 ## Academic catalogue
 
@@ -84,4 +74,4 @@ Contact the administrators at [baidoomensahama@gmail.com](mailto:baidoomensahama
 
 Students can search approved tutors, unlock private contact details through verified payment, review tutors after an unlock, and send private reports. Tutors can manage their profiles and request course associations. Administrators can review tutor and course requests, moderate reviews and reports, and inspect the audit log. Moderation actions require a reason and are recorded in `admin_actions`.
 
-Contact details remain protected by row-level security. Payment, contact unlock and premium writes are handled by the Edge Function using the service-role key. The live Supabase project has migrations 004, 005 and 006 applied: 535 UCC admissions programmes are available, the public learning-resource table is created, and the assistant quota table exists. The `payments` and `student-assistant` Edge Functions are deployed; source updates must be deployed separately from Netlify. For Paystack test mode, set the callback URL to `https://127.0.0.1:5173/` for the current local preview and set the test webhook URL to `https://lenwoopmxlgzlymfbmfh.supabase.co/functions/v1/payments`. The callback used by checkout is also supplied dynamically by the app. The `payments` Edge Function is deployed with JWT verification disabled and validates Paystack's HMAC-SHA512 signature internally. Replace the local callback with the public HTTPS origin before launching to users.
+Contact details remain protected by row-level security. Payment, contact unlock and premium writes are handled by the Edge Function using the service-role key. The live Supabase project has migrations 004, 005 and 006 applied: 535 UCC admissions programmes are available, the public learning-resource table is created, and the historical assistant quota table exists but is unused. The `payments` Edge Function is deployed. For Paystack test mode, set the callback URL to `https://127.0.0.1:5173/` for the current local preview and set the test webhook URL to `https://lenwoopmxlgzlymfbmfh.supabase.co/functions/v1/payments`. The callback used by checkout is also supplied dynamically by the app. The `payments` Edge Function is deployed with JWT verification disabled and validates Paystack's HMAC-SHA512 signature internally. Replace the local callback with the public HTTPS origin before launching to users.

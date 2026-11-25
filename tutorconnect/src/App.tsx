@@ -87,28 +87,6 @@ function ContactLinks({ contact }: { contact: ContactDetails }) {
 function optionalFormValue(values: FormData, name: string) {
   return String(values.get(name) || "").trim() || null;
 }
-type AssistantMessage = { role: "user" | "model"; text: string };
-const assistantRequestTimeoutMs = 65_000;
-
-function isResponseLike(value: unknown): value is Pick<Response, "clone"> {
-  return Boolean(value && typeof value === "object" && "clone" in value && typeof value.clone === "function");
-}
-
-async function assistantErrorMessage(error: unknown): Promise<string> {
-  if (error && typeof error === "object" && "context" in error && isResponseLike(error.context)) {
-    let body: unknown;
-    try {
-      body = await error.context.clone().json();
-    } catch {
-      body = null;
-    }
-    if (body && typeof body === "object" && "error" in body && typeof body.error === "string" && body.error.trim()) {
-      return body.error;
-    }
-  }
-  return error instanceof Error ? error.message : "The assistant is unavailable. Please try again.";
-}
-
 function VerifiedBadge({ label }: { label: string }) {
   return <span className="verified-mark" role="img" aria-label={label} title={label}>
     <svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg>
@@ -573,28 +551,12 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
-  const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([]);
-  const [assistantDraft, setAssistantDraft] = useState("");
-  const [assistantLoading, setAssistantLoading] = useState(false);
-  const [assistantError, setAssistantError] = useState("");
-  const assistantInputRef = useRef<HTMLTextAreaElement>(null);
-  const assistantEndRef = useRef<HTMLDivElement>(null);
-
   const unitOptions = useMemo(() => units.filter((unit) => unit.unit_type === "department" || unit.unit_type === "school" || unit.unit_type === "college"), [units]);
   const profileNames = useMemo(() => Object.fromEntries(adminProfiles.map((item) => [item.id, item.full_name || "TutorConnect member"])), [adminProfiles]);
   const tutorVerified = isTutorVerificationActive(
     tutorProfile?.status ?? "",
     tutorProfile?.premium_until ?? null,
   );
-
-  useEffect(() => {
-    if (assistantOpen) assistantInputRef.current?.focus();
-  }, [assistantOpen]);
-
-  useEffect(() => {
-    assistantEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [assistantMessages, assistantLoading]);
 
   useEffect(() => () => {
     if (avatarPreviewUrl.current) URL.revokeObjectURL(avatarPreviewUrl.current);
@@ -703,73 +665,6 @@ export default function App() {
     } finally {
       if (requestId === profileLoadRequest.current) setProfileLoading(false);
     }
-  }
-
-  async function requestAssistantReply(messages: AssistantMessage[]) {
-    if (!supabase) {
-      setAssistantError("The assistant is unavailable because the Supabase connection is not configured. Please contact an administrator.");
-      return;
-    }
-    if (!user) {
-      setAssistantError("Log in to chat with the AI assistant.");
-      return;
-    }
-
-    setAssistantLoading(true);
-    setAssistantError("");
-    const abortController = new AbortController();
-    const timeoutId = window.setTimeout(() => abortController.abort(), assistantRequestTimeoutMs);
-    try {
-      const { data, error } = await supabase.functions.invoke<{ reply?: string }>("student-assistant", {
-        body: { messages },
-        signal: abortController.signal,
-      });
-      if (error) throw error;
-      if (!data || typeof data.reply !== "string" || !data.reply.trim()) {
-        throw new Error("The assistant returned an empty reply. Please try again.");
-      }
-      setAssistantMessages([...messages, { role: "model", text: data.reply.trim() }]);
-    } catch (error) {
-      setAssistantError(abortController.signal.aborted
-        ? "The assistant is taking longer than expected. Please try again."
-        : await assistantErrorMessage(error));
-    } finally {
-      window.clearTimeout(timeoutId);
-      setAssistantLoading(false);
-    }
-  }
-
-  async function sendAssistantMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const text = assistantDraft.trim();
-    if (!text || assistantLoading || assistantMessages[assistantMessages.length - 1]?.role === "user") return;
-    if (!user) {
-      setAssistantError("Log in to chat with the AI assistant.");
-      return;
-    }
-    const messages = [...assistantMessages.slice(-11), { role: "user" as const, text }];
-    setAssistantMessages(messages);
-    setAssistantDraft("");
-    await requestAssistantReply(messages);
-  }
-
-  async function askAssistantPrompt(prompt: string) {
-    if (!user || assistantLoading) return;
-    const messages = [...assistantMessages.slice(-11), { role: "user" as const, text: prompt }];
-    setAssistantMessages(messages);
-    setAssistantError("");
-    await requestAssistantReply(messages);
-  }
-
-  function clearAssistantConversation() {
-    setAssistantMessages([]);
-    setAssistantDraft("");
-    setAssistantError("");
-  }
-
-  async function retryAssistantMessage() {
-    if (assistantLoading || assistantMessages[assistantMessages.length - 1]?.role !== "user") return;
-    await requestAssistantReply(assistantMessages);
   }
 
   useEffect(() => {
@@ -2242,72 +2137,5 @@ export default function App() {
       {adminTab === "audit" && <section className="panel"><h2>Moderation audit log</h2>{adminActions.length ? adminActions.map((item) => <article className="list-item" key={item.id}><div className="row-between"><b>{item.action}</b><small>{dateLabel(item.created_at)}</small></div><p>{item.reason}</p><small>Admin {profileNames[item.admin_id] || item.admin_id} · Target {item.target_id}</small></article>) : <p className="muted">No admin actions recorded.</p>}</section>}
     </main> : <main id="main-content" tabIndex={-1} className="page"><section className="empty-state" role="status" aria-live="polite"><h1>Loading your workspace</h1><p className="muted">Your account role and permissions are being checked.</p></section></main>}
     <footer className="app-footer"><span>TutorConnect · course units link to official sources; external learning resources are source-labelled and not lecturer endorsements.</span><span>Contact administrators: <a href="mailto:baidoomensahama@gmail.com">baidoomensahama@gmail.com</a> · <a href="tel:0245664985">0245664985</a> · <a href="https://wa.me/2332456698495" target="_blank" rel="noreferrer">WhatsApp</a></span></footer>
-    <button
-      className="assistant-fab"
-      type="button"
-      aria-label={assistantOpen ? "Close student assistant" : "Open student assistant"}
-      aria-expanded={assistantOpen}
-      aria-controls="student-assistant-panel"
-      onClick={() => setAssistantOpen((open) => !open)}
-    >
-      <span aria-hidden="true">{assistantOpen ? "×" : "✦"}</span>
-      <span>{assistantOpen ? "Close" : "Ask AI"}</span>
-    </button>
-    {assistantOpen && <section id="student-assistant-panel" className="assistant-panel" role="region" aria-label="TutorConnect student assistant">
-      <header className="assistant-header">
-        <div><p className="eyebrow">TUTORCONNECT SUPPORT</p><h2>Student assistant</h2></div>
-        <div className="assistant-header-actions">
-          {assistantMessages.length > 0 && <button className="assistant-clear" type="button" onClick={clearAssistantConversation}>Clear</button>}
-          <button className="assistant-close" type="button" aria-label="Close student assistant" onClick={() => setAssistantOpen(false)}>×</button>
-        </div>
-      </header>
-      <p className="assistant-disclaimer">Ask about any subject, explain a concept, prepare for a quiz, solve a problem step-by-step or get help using TutorConnect. The AI may make mistakes and cannot see private account data or browse live university information.</p>
-      <div className="assistant-messages" role="log" aria-label="Chat messages" aria-live="polite" aria-relevant="additions">
-        {assistantMessages.length === 0 && <div className="assistant-welcome">
-          <p>Hi! What would you like help with today?</p>
-          {user ? <div className="assistant-prompts" aria-label="Suggested questions">
-            <button type="button" disabled={assistantLoading} onClick={() => void askAssistantPrompt("Explain a difficult topic in simple steps.")}>Explain a topic</button>
-            <button type="button" disabled={assistantLoading} onClick={() => void askAssistantPrompt("Create a 7-day study plan for my exam.")}>Make a study plan</button>
-            <button type="button" disabled={assistantLoading} onClick={() => void askAssistantPrompt("Help me solve a problem step by step. Ask me for the question first.")}>Solve with steps</button>
-          </div> : <p className="muted">Sign in to start a study conversation.</p>}
-        </div>}
-        {assistantMessages.map((message, index) => <p className={`assistant-message ${message.role === "user" ? "assistant-message-user" : "assistant-message-ai"}`} key={`${index}-${message.role}`}>{message.text}</p>)}
-        {assistantLoading && <p className="assistant-message assistant-message-ai" role="status">Thinking…</p>}
-        <div ref={assistantEndRef} />
-      </div>
-      {assistantError && <p className="assistant-error" role="alert">{assistantError}</p>}
-      {assistantError && user && assistantMessages[assistantMessages.length - 1]?.role === "user" && <button className="assistant-retry" type="button" onClick={() => void retryAssistantMessage()} disabled={assistantLoading}>Try again</button>}
-      {!supabase ? <div className="assistant-login-prompt" role="status">
-        <p>AI chat is unavailable because the Supabase connection is not configured.</p>
-      </div> : user ? <form className="assistant-form" onSubmit={(event) => void sendAssistantMessage(event)}>
-        <label className="visually-hidden" htmlFor="assistant-message">Your question</label>
-        <textarea
-          id="assistant-message"
-          ref={assistantInputRef}
-          value={assistantDraft}
-          onChange={(event) => setAssistantDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
-          placeholder="Ask a question…"
-          rows={2}
-          maxLength={2000}
-          disabled={assistantLoading || assistantMessages[assistantMessages.length - 1]?.role === "user"}
-        />
-        <button className="button button-primary" type="submit" disabled={assistantLoading || assistantMessages[assistantMessages.length - 1]?.role === "user" || !assistantDraft.trim()}>{assistantLoading ? "Sending…" : "Send"}</button>
-      </form> : <div className="assistant-login-prompt">
-        <p>Log in to chat with the AI assistant.</p>
-        <button className="button button-outline" type="button" onClick={() => { setAssistantOpen(false); setAuthMode("login"); navigate("discover"); }}>Log in</button>
-      </div>}
-      <div className="assistant-contact">
-        <strong>Need a person?</strong>
-        <a href="mailto:baidoomensahama@gmail.com" aria-label="Email the administrators">Email us</a>
-        <a href="tel:0245664985" aria-label="Call 0245664985">Call 0245664985</a>
-        <a href="https://wa.me/2332456698495" target="_blank" rel="noreferrer" aria-label="Message us on WhatsApp">WhatsApp</a>
-      </div>
-    </section>}
   </div>;
 }

@@ -5,9 +5,7 @@ test("mobile layout does not overflow horizontally", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { name: /Learn from someone who understands/ })).toBeVisible();
-  const assistantButton = page.getByRole("button", { name: "Open student assistant" });
-  await expect(assistantButton).toBeVisible();
-  expect(await assistantButton.evaluate((element) => getComputedStyle(element).bottom)).toBe("78px");
+  await expect(page.getByRole("button", { name: /Ask AI|Open student assistant/ })).toHaveCount(0);
   const widths = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
     document: document.documentElement.scrollWidth,

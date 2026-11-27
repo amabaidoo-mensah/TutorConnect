@@ -75,6 +75,7 @@ async function finalize(reference: string) {
 }
 
 Deno.serve(async (request) => {
+  try {
   if (request.method === "OPTIONS") return json({});
   if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
 
@@ -261,4 +262,9 @@ Deno.serve(async (request) => {
   }
 
   return json({ url: initialization.data.authorization_url, reference });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected payments service error.";
+    console.error("TutorConnect payments function error:", message);
+    return json({ error: "Payment service could not complete the request. Please retry or contact support." }, 500);
+  }
 });

@@ -55,3 +55,31 @@ test("presentation course and programme pages use clearly identified sample cont
   await expect(page.getByText("Example BSc Computer Science")).toBeVisible();
   await expect(page.getByText("Example only").first()).toBeVisible();
 });
+
+test("student demo can complete a simulated unlock and receive a receipt", async ({ page }) => {
+  await page.goto("/?demo=1&role=student");
+  await page.getByLabel("Course code or title").fill("CS101");
+  await page.getByRole("button", { name: "Search tutors" }).click();
+
+  await page.getByRole("button", { name: "Demo unlock contact · GHS 10" }).click();
+  await expect(page.getByRole("dialog", { name: "Tutor contact unlock — Tutor Ama" })).toBeVisible();
+  await expect(page.getByText("Successful (simulated)").first()).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Contact unlocked", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Email: tutor.demo@example.com" }).first()).toBeVisible();
+});
+
+test("tutor demo can activate a plan and purchase a resource publishing credit", async ({ page }) => {
+  await page.goto("/?demo=1&role=tutor");
+  await expect(page.getByRole("heading", { name: /Your teaching dashboard/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Choose monthly" }).click();
+  await expect(page.getByRole("dialog", { name: "Monthly tutor listing plan" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Active", { exact: true }).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Pay GHS 50 for one resource" }).click();
+  await expect(page.getByRole("dialog", { name: "Tutor resource publishing credit" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText(/Unused publishing credits: 1/)).toBeVisible();
+});

@@ -69,6 +69,13 @@ type AdminTutor = { id: string; bio: string | null; qualifications: string | nul
 type AdminTutorCourse = { id: number; tutor_id: string; status: string; courses: Course | null };
 type AdminProfile = { id: string; full_name: string | null; role: Role };
 type AdminAction = { id: number; admin_id: string; target_id: string; action: string; reason: string; created_at: string };
+type DemoPaymentReceipt = {
+  reference: string;
+  purpose: "contact" | "premium" | "resource";
+  amount: number;
+  description: string;
+  created_at: string;
+};
 
 function ContactLinks({ contact }: { contact: ContactDetails }) {
   const phoneHref = contact.phone?.replace(/[^\d+]/g, "");
@@ -496,6 +503,7 @@ const presentationProgrammes: AcademicProgramme[] = [
 
 export default function App() {
   const presentationDemo = new URLSearchParams(window.location.search).get("demo") === "1";
+  const demoRole = new URLSearchParams(window.location.search).get("role");
   const [user, setUser] = useState<{ id: string; email: string | null } | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -551,6 +559,7 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [demoReceipt, setDemoReceipt] = useState<DemoPaymentReceipt | null>(null);
   const unitOptions = useMemo(() => units.filter((unit) => unit.unit_type === "department" || unit.unit_type === "school" || unit.unit_type === "college"), [units]);
   const profileNames = useMemo(() => Object.fromEntries(adminProfiles.map((item) => [item.id, item.full_name || "TutorConnect member"])), [adminProfiles]);
   const tutorVerified = isTutorVerificationActive(
@@ -583,6 +592,69 @@ export default function App() {
     setAdminCourses([]);
     setAdminActions([]);
   }
+
+  useEffect(() => {
+    if (!presentationDemo || (demoRole !== "student" && demoRole !== "tutor")) return;
+    const role: Role = demoRole;
+    const id = role === "tutor" ? "demo-tutor-computing" : "demo-student";
+    setUser({ id, email: role === "tutor" ? "tutor.demo@example.com" : "student.demo@example.com" });
+    setProfile({
+      id,
+      full_name: role === "tutor" ? "Tutor Ama" : "Demo Student",
+      role,
+      bio: role === "tutor" ? "Fictional tutor approved for the presentation demo." : "Fictional student account for the presentation demo.",
+      avatar_path: null,
+      avatar_url: null,
+      is_verified: role === "tutor",
+      phone: role === "student" ? "+233 20 000 0001" : null,
+      contact_email: role === "student" ? "student.demo@example.com" : null,
+      whatsapp_url: null,
+      instagram_url: null,
+      facebook_url: null,
+      linkedin_url: null,
+      x_url: null,
+      website_url: null,
+    });
+    if (role === "tutor") {
+      setTutorProfile({
+        id,
+        bio: "Fictional tutor profile for demonstrating premium listings and resource publishing.",
+        qualifications: "Demo qualifications",
+        rate: 45,
+        delivery: "Online",
+        availability: "Weekdays",
+        status: "approved",
+        premium_until: null,
+        views: 0,
+      });
+      setTutorContact({
+        tutor_id: id,
+        phone: "+233 20 000 0002",
+        email: "tutor.demo@example.com",
+        whatsapp_url: "https://wa.me/233200000002",
+        instagram_url: null,
+        facebook_url: null,
+        linkedin_url: null,
+        x_url: null,
+        website_url: null,
+      });
+      setTutorCourses([
+        { id: -1, status: "approved", courses: { id: -2, institution_id: -1, code: "CS101", title: "Introduction to Computing", academic_unit_id: -3, source_url: null } },
+        { id: -2, status: "approved", courses: { id: -3, institution_id: -1, code: "CS102", title: "Programming Fundamentals", academic_unit_id: -3, source_url: null } },
+      ]);
+      setTutorResources(presentationTutorResources.filter((resource) => resource.tutor_id === id));
+      try {
+        const storedCredits = JSON.parse(localStorage.getItem("tutorconnect-demo-resource-credits") || "[]");
+        setResourceCredits(Array.isArray(storedCredits) ? storedCredits : []);
+      } catch {
+        setResourceCredits([]);
+      }
+      setTutorStats({ profile_views: 24, contact_unlocks: 3, review_count: 2, average_rating: 4.8 });
+    } else {
+      setContacts({});
+      setRecentlyUnlockedContact(null);
+    }
+  }, [presentationDemo, demoRole]);
 
   async function loadProfile(id: string) {
     if (!supabase) return;
@@ -1089,9 +1161,64 @@ export default function App() {
     await runSearch();
   }
 
+  function createDemoReceipt(purpose: DemoPaymentReceipt["purpose"], amount: number, description: string) {
+    const reference = `TC-DEMO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const receipt: DemoPaymentReceipt = {
+      reference,
+      purpose,
+      amount,
+      description,
+      created_at: new Date().toISOString(),
+    };
+    setDemoReceipt(receipt);
+    try {
+      const stored = JSON.parse(localStorage.getItem("tutorconnect-demo-receipts") || "[]");
+      localStorage.setItem("tutorconnect-demo-receipts", JSON.stringify([receipt, ...(Array.isArray(stored) ? stored : [])].slice(0, 20)));
+    } catch {
+      localStorage.setItem("tutorconnect-demo-receipts", JSON.stringify([receipt]));
+    }
+    return receipt;
+  }
+
+  function downloadDemoReceipt(receipt: DemoPaymentReceipt) {
+    const text = [
+      "TutorConnect — DEMO PAYMENT RECEIPT",
+      "",
+      `Reference: ${receipt.reference}`,
+      `Status: SUCCESSFUL (simulated)`,
+      `Purpose: ${receipt.description}`,
+      `Amount: GHS ${receipt.amount.toFixed(2)}`,
+      `Date: ${new Date(receipt.created_at).toLocaleString()}`,
+      "",
+      "This is a presentation demo receipt. No real money was charged.",
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${receipt.reference}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function unlockContact(tutorId: string) {
     if (presentationDemo) {
-      setNotice("Contact details and payments are disabled for presentation profiles.");
+      const tutor = presentationTutors.find((item) => item.id === tutorId);
+      const contact: Contact = {
+        tutor_id: tutorId,
+        phone: tutorId === "demo-tutor-computing" ? "+233 20 000 0002" : "+233 20 000 0003",
+        email: tutorId === "demo-tutor-computing" ? "tutor.demo@example.com" : "demo.tutor@example.com",
+        whatsapp_url: tutorId === "demo-tutor-computing" ? "https://wa.me/233200000002" : null,
+        instagram_url: null,
+        facebook_url: null,
+        linkedin_url: null,
+        x_url: null,
+        website_url: null,
+      };
+      createDemoReceipt("contact", 10, `Tutor contact unlock — ${tutor?.name ?? "Demo tutor"}`);
+      setContacts((current) => ({ ...current, [tutorId]: contact }));
+      setRecentlyUnlockedContact(contact);
+      setProfile((current) => current ? { ...current, is_verified: current.role === "student" } : current);
+      setNotice("Demo payment successful. The tutor's contact details are now unlocked.");
       return;
     }
     if (!supabase || !user) {
@@ -1103,7 +1230,9 @@ export default function App() {
       body: { action: "contact", tutor_id: tutorId, callback_url: location.origin },
     });
     setBusy(false);
-    if (error) setNotice(error.message);
+    if (error) setNotice(data?.error
+      ? `Payment service: ${data.error}`
+      : "Edge Function payment call failed. Confirm the payments function is deployed and PAYSTACK_SECRET is configured, then retry.");
     else if (data?.already_unlocked) {
       setNotice("You have already unlocked this tutor's contact details.");
       await runSearch();
@@ -1113,6 +1242,20 @@ export default function App() {
   }
 
   async function startPremiumCheckout(plan: "monthly" | "semester") {
+    if (presentationDemo) {
+      const amount = plan === "monthly" ? 50 : 200;
+      const days = plan === "monthly" ? 30 : 120;
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + days);
+      setTutorProfile((current) => current ? {
+        ...current,
+        premium_until: expiry.toISOString(),
+      } : current);
+      setProfile((current) => current ? { ...current, is_verified: true } : current);
+      createDemoReceipt("premium", amount, `${plan === "monthly" ? "Monthly" : "Semester"} tutor listing plan`);
+      setNotice("Demo payment successful. Your tutor listing mark is now active.");
+      return;
+    }
     if (!supabase || !user || profile?.role !== "tutor") {
       setNotice("Sign in to a tutor account before subscribing.");
       return;
@@ -1144,6 +1287,17 @@ export default function App() {
   }
 
   async function startResourceCheckout() {
+    if (presentationDemo) {
+      const credit = `demo-resource-${crypto.randomUUID().slice(0, 8)}`;
+      setResourceCredits((current) => {
+        const next = [credit, ...current];
+        localStorage.setItem("tutorconnect-demo-resource-credits", JSON.stringify(next));
+        return next;
+      });
+      createDemoReceipt("resource", 50, "Tutor resource publishing credit");
+      setNotice("Demo payment successful. One resource publishing credit is ready.");
+      return;
+    }
     if (!supabase || !user || profile?.role !== "tutor") {
       setNotice("Sign in to a tutor account before publishing resources.");
       return;
@@ -1362,6 +1516,77 @@ export default function App() {
 
   async function saveTutorResource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (presentationDemo) {
+      if (!profile || profile.role !== "tutor") return;
+      if (tutorProfile?.status !== "approved") {
+        setNotice("Only approved demo tutors can publish resources.");
+        return;
+      }
+      const paymentId = resourceCredits[0];
+      if (!paymentId) {
+        setNotice("Complete the demo GHS 50 resource payment first.");
+        return;
+      }
+      const form = event.currentTarget;
+      const values = new FormData(form);
+      const url = String(values.get("url") || "").trim();
+      const selectedFile = values.get("resource_file");
+      const file = selectedFile instanceof File && selectedFile.size > 0 ? selectedFile : null;
+      if (file && url) {
+        setNotice("Choose either a file upload or an external link, not both.");
+        return;
+      }
+      if (!file && !url) {
+        setNotice("Choose a file or provide an external HTTPS link.");
+        return;
+      }
+      if (!file && !url.startsWith("https://")) {
+        setNotice("Resource links must use HTTPS.");
+        return;
+      }
+      const resourceType = String(values.get("resource_type")) as TutorResource["resource_type"];
+      if (!file && resourceType === "teaching_video") {
+        try {
+          const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+          if (!["youtube.com", "youtu.be", "m.youtube.com", "music.youtube.com"].includes(host)) {
+            setNotice("Teaching videos must be YouTube links.");
+            return;
+          }
+        } catch {
+          setNotice("Enter a valid YouTube video or playlist URL.");
+          return;
+        }
+      }
+      const courseId = Number(values.get("course_id"));
+      if (!courseId) {
+        setNotice("Choose one of your approved courses.");
+        return;
+      }
+      const objectUrl = file ? URL.createObjectURL(file) : null;
+      const resource: TutorResource = {
+        id: Date.now(),
+        tutor_id: profile.id,
+        course_id: courseId,
+        course_code: tutorCourses.find((item) => item.courses?.id === courseId)?.courses?.code ?? null,
+        resource_type: resourceType,
+        title: String(values.get("title")).trim(),
+        url: file ? null : url,
+        storage_path: null,
+        resource_payment_id: paymentId,
+        signed_url: objectUrl,
+        description: String(values.get("description") || "").trim() || null,
+        created_at: new Date().toISOString(),
+      };
+      setTutorResources((current) => [resource, ...current]);
+      setResourceCredits((current) => {
+        const next = current.filter((credit) => credit !== paymentId);
+        localStorage.setItem("tutorconnect-demo-resource-credits", JSON.stringify(next));
+        return next;
+      });
+      form.reset();
+      setNotice("Demo resource published successfully. The publishing credit has been used.");
+      return;
+    }
     if (!supabase || !profile || profile.role !== "tutor") return;
     if (tutorProfile?.status !== "approved") {
       setNotice("Only approved tutors can publish resources.");
@@ -1484,6 +1709,11 @@ export default function App() {
   }
 
   async function removeTutorResource(id: number) {
+    if (presentationDemo) {
+      setTutorResources((current) => current.filter((item) => item.id !== id));
+      setNotice("Demo resource removed.");
+      return;
+    }
     if (!supabase || !profile || profile.role !== "tutor") return;
     const resource = tutorResources.find((item) => item.id === id);
     const { error } = await supabase.from("tutor_resources").delete().eq("id", id).eq("tutor_id", profile.id);
@@ -1789,12 +2019,33 @@ export default function App() {
     </header>
 
     {presentationDemo && <aside className="presentation-banner" aria-label="Presentation demo notice">
-      <div><strong>Presentation demo</strong><span>Profiles and programme entries are fictional. Sample learning links are external. No payments, contact unlocks, reviews or reports are submitted.</span></div>
+      <div><strong>Presentation demo</strong><span>Profiles and programme entries are fictional. Payments are simulated locally; no real money is charged.</span></div>
+      {demoRole !== "student" && <button className="button button-outline" type="button" onClick={() => location.assign("/?demo=1&role=student")}>Demo as student</button>}
+      {demoRole !== "tutor" && <button className="button button-outline" type="button" onClick={() => location.assign("/?demo=1&role=tutor")}>Demo as tutor</button>}
       {!user && <button className="button button-primary" type="button" onClick={() => { setAuthMode("signup"); setDemoAuthRequested(true); setSection("discover"); }}>Create a real account</button>}
       <a className="button button-outline" href="/">Exit demo</a>
     </aside>}
 
     {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss message" onClick={() => setNotice("")}>×</button></div>}
+
+    {demoReceipt && presentationDemo && <div className="demo-payment-backdrop" role="presentation">
+      <section className="demo-receipt" role="dialog" aria-modal="true" aria-labelledby="demo-receipt-title">
+        <div className="demo-receipt-status"><span aria-hidden="true">✓</span> Payment successful</div>
+        <p className="eyebrow">DEMO RECEIPT</p>
+        <h2 id="demo-receipt-title">{demoReceipt.description}</h2>
+        <dl>
+          <div><dt>Reference</dt><dd>{demoReceipt.reference}</dd></div>
+          <div><dt>Amount</dt><dd>GHS {demoReceipt.amount.toFixed(2)}</dd></div>
+          <div><dt>Status</dt><dd>Successful (simulated)</dd></div>
+          <div><dt>Date</dt><dd>{new Date(demoReceipt.created_at).toLocaleString()}</dd></div>
+        </dl>
+        <p className="muted">No real payment was processed. This receipt proves the demo workflow only.</p>
+        <div className="demo-receipt-actions">
+          <button className="button button-outline" type="button" onClick={() => downloadDemoReceipt(demoReceipt)}>Download receipt</button>
+          <button className="button button-primary" type="button" onClick={() => setDemoReceipt(null)}>Continue</button>
+        </div>
+      </section>
+    </div>}
 
     {authMode === "update" && user ? <main id="main-content" tabIndex={-1} className="auth-layout">
       <section className="auth-story"><div className="auth-brand-lockup"><span className="brand-mark">TC</span><span>Secure account recovery</span></div><p className="eyebrow">PASSWORD RESET</p><h1>Choose a new <em>password.</em></h1><p className="lead">Set a strong password to secure your TutorConnect account.</p></section>
@@ -1995,7 +2246,9 @@ export default function App() {
             <p className="tutor-meta">{tutor.avg_rating ? `★ ${tutor.avg_rating.toFixed(1)} (${tutor.review_count} reviews)` : "No reviews yet"} · {tutor.rate == null ? "Rate not listed" : `GHS ${tutor.rate}/hr`} · {tutor.delivery || "Delivery to be confirmed"}</p>
             {matchingResources.length > 0 && <div className="resource-list"><h3>Teaching previews & learning resources</h3>{matchingResources.map((resource) => <a key={resource.id} href={resource.signed_url || resource.url || undefined} target="_blank" rel="noreferrer"><span>{resource.course_code ? `${resource.course_code} · ` : "General · "}{resourceLabel(resource.resource_type)}</span><b>{resource.title}</b>{resource.description && <small>{resource.description}</small>}</a>)}<small>Course links are shown only for the matching subjects. Third-party materials are identified by their source.</small></div>}
             {contacts[tutor.id] ? <div className="contact-box"><b>Contact unlocked</b><ContactLinks contact={contacts[tutor.id]} /></div>
-              : presentationDemo ? <button className="button button-outline" type="button" disabled>Contact unlock disabled in demo</button>
+              : presentationDemo ? demoRole === "student"
+                ? <button className="button button-primary" type="button" disabled={busy} onClick={() => void unlockContact(tutor.id)}>Demo unlock contact · GHS 10</button>
+                : <button className="button button-outline" type="button" disabled>Contact unlock disabled in demo</button>
                 : <button className="button button-primary" disabled={!profile || busy} onClick={() => void unlockContact(tutor.id)}>Unlock contact · GHS 10</button>}
             {profile?.role === "student" && contacts[tutor.id] && <div className="feedback-grid">
               <form className="mini-form" onSubmit={(event) => void submitReview(event, tutor.id)}>

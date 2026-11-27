@@ -61,6 +61,17 @@ p { line-height: 1.55; }
 
 .notice { position: sticky; z-index: 3; top: 8px; width: min(900px, calc(100% - 32px)); margin: 12px auto -4px; padding: 12px 48px 12px 16px; border: 1px solid #c5e1dc; border-radius: 12px; color: #245e63; background: #edf8f6; box-shadow: var(--shadow); }
 .notice button { position: absolute; right: 12px; top: 8px; border: 0; background: transparent; color: inherit; font-size: 1.35rem; }
+.demo-payment-backdrop { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(25, 52, 59, .48); backdrop-filter: blur(5px); }
+.demo-receipt { width: min(480px, 100%); padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: 0 24px 80px rgba(25, 52, 59, .24); }
+.demo-receipt-status { margin-bottom: 16px; display: flex; align-items: center; gap: 10px; color: #1d6b4a; font-weight: 800; }
+.demo-receipt-status span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #daf3e7; font-size: 1.1rem; }
+.demo-receipt h2 { margin: 6px 0 16px; }
+.demo-receipt dl { margin: 0 0 16px; display: grid; border: 1px solid var(--line); border-radius: 12px; }
+.demo-receipt dl div { padding: 10px 12px; display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); }
+.demo-receipt dl div:last-child { border-bottom: 0; }
+.demo-receipt dt { color: var(--muted); }
+.demo-receipt dd { margin: 0; text-align: right; font-weight: 800; }
+.demo-receipt-actions { margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px; }
 .presentation-banner { padding: 12px max(5vw, 24px); display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #c5e1dc; background: linear-gradient(100deg, #edf7fb 0%, #edf8f2 100%); }
 .presentation-banner > div { display: grid; gap: 3px; }
 .presentation-banner strong { color: #245e63; }

@@ -143,6 +143,13 @@ textarea { resize: vertical; }
 .verified-mark-large { width: 25px; height: 25px; vertical-align: 5px; }
 .verified-mark-large svg { width: 17px; height: 17px; }
 .verified-profile-note { width: fit-content; margin: 12px 0 0; padding: 8px 11px; border: 1px solid #c9defe; border-radius: 99px; background: #eff6ff; color: #1556a8; font-size: .82rem; font-weight: 700; }
+.presence-indicator { width: fit-content; display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; padding: 6px 10px; border: 1px solid #d5e0e2; border-radius: 99px; background: #fff; color: #526a70; font-size: .78rem; font-weight: 750; }
+.presence-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c8b8e; }
+.presence-indicator-active { border-color: #b7e4c7; background: #effaf2; color: #176b36; }
+.presence-indicator-active .presence-dot { background: #20a34a; box-shadow: 0 0 0 3px #d4f2dc; }
+.presence-indicator-inactive { background: #f7f8f8; }
+.presence-indicator-unknown { border-style: dashed; }
+.presence-error { margin: 8px 0 0; color: #9a3e34; font-size: .8rem; }
 .nav-link .verified-mark { width: 15px; height: 15px; margin-left: 6px; vertical-align: -2px; }
 .nav-link .verified-mark svg { width: 10px; height: 10px; }
 .unit-label { color: #526a70; font-size: .82rem; }

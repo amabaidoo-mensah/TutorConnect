@@ -26,6 +26,15 @@ test("presentation mode shows fictional tutor cards without payment actions and 
   await expect(page.getByRole("link", { name: "Return to presentation demo" })).toBeVisible();
 });
 
+test("demo account presence becomes inactive after five minutes without activity", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/?demo=1&role=student");
+
+  await expect(page.getByLabel("Your status: Active now")).toBeVisible();
+  await page.clock.fastForward(5 * 60 * 1000 + 1_000);
+  await expect(page.getByLabel("Your status: Inactive")).toBeVisible();
+});
+
 test("one tutor profile can show multiple subjects with resources matched to each", async ({ page }) => {
   await page.goto("/?demo=1");
   await page.getByLabel("Course code or title").fill("CS10");

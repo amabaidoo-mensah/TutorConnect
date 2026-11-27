@@ -81,6 +81,7 @@ type TutorStats = { profile_views: number; contact_unlocks: number; review_count
 type AdminTutor = { id: string; bio: string | null; qualifications: string | null; status: string };
 type AdminTutorCourse = { id: number; tutor_id: string; status: string; courses: Course | null };
 type AdminProfile = { id: string; full_name: string | null; role: Role };
+type PresenceStatus = "active" | "inactive" | "unknown";
 type AdminAction = { id: number; admin_id: string; target_id: string; action: string; reason: string; created_at: string };
 type DemoPaymentReceipt = {
   reference: string;
@@ -175,6 +176,12 @@ function VerifiedBadge({ label }: { label: string }) {
     <svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg>
   </span>;
 }
+function PresenceIndicator({ status, text }: { status: PresenceStatus; text?: string }) {
+  const stateText = status === "active" ? "Active now" : status === "inactive" ? "Inactive" : "Status unavailable";
+  return <span className={`presence-indicator presence-indicator-${status}`} aria-label={text ? `${text}: ${stateText}` : stateText}>
+    <span className="presence-dot" aria-hidden="true" />{text ? `${text}: ${stateText}` : stateText}
+  </span>;
+}
 
 async function signTutorResourceFiles(resources: TutorResource[]) {
   const client = supabase;
@@ -200,6 +207,11 @@ const unitPath = (id: number | null, units: AcademicUnit[]) => {
 const dateLabel = (value: string) => new Date(value).toLocaleDateString(undefined, { dateStyle: "medium" });
 const roleFrom = (value: string): Role => value === "admin" || value === "tutor" ? value : "student";
 const resourceLabel = (type: TutorResource["resource_type"]) => type === "teaching_video" ? "Teaching preview" : type === "past_questions" ? "Past questions" : "Course resource";
+const presenceInactiveThresholdMs = 5 * 60 * 1000;
+const presenceStatusAt = (lastSeenAt: number | null | undefined, now: number): PresenceStatus => {
+  if (lastSeenAt === null || lastSeenAt === undefined) return "inactive";
+  return now - lastSeenAt < presenceInactiveThresholdMs ? "active" : "inactive";
+};
 const resourceFileSizeLimit = 50 * 1024 * 1024;
 const resourceFileExtensions: Record<string, string> = {
   "video/mp4": "mp4",
@@ -622,6 +634,12 @@ export default function App() {
   const [resourceDraftIds, setResourceDraftIds] = useState<string[]>(() => [crypto.randomUUID()]);
   const [resourceDraftDirty, setResourceDraftDirty] = useState(false);
   const [resourcesByTutor, setResourcesByTutor] = useState<Record<string, TutorResource[]>>({});
+  const [myPresenceLastSeenAt, setMyPresenceLastSeenAt] = useState<number | null>(null);
+  const [myPresenceError, setMyPresenceError] = useState<string | null>(null);
+  const [presenceLastSeenByUserId, setPresenceLastSeenByUserId] = useState<Record<string, number>>({});
+  const [tutorPresenceLoaded, setTutorPresenceLoaded] = useState(false);
+  const [tutorPresenceError, setTutorPresenceError] = useState<string | null>(null);
+  const [presenceNow, setPresenceNow] = useState(() => Date.now());
   const [tutorReviews, setTutorReviews] = useState<Review[]>([]);
   const [tutorStats, setTutorStats] = useState<TutorStats | null>(null);
   const [courseOptions, setCourseOptions] = useState<Course[]>([]);
@@ -662,9 +680,17 @@ export default function App() {
     tutorProfile?.status ?? "",
     tutorProfile?.premium_until ?? null,
   );
+  const myPresenceStatus: PresenceStatus = myPresenceLastSeenAt === null
+    ? "unknown"
+    : presenceStatusAt(myPresenceLastSeenAt, presenceNow);
 
   useEffect(() => () => {
     if (avatarPreviewUrl.current) URL.revokeObjectURL(avatarPreviewUrl.current);
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setPresenceNow(Date.now()), 15_000);
+    return () => window.clearInterval(interval);
   }, []);
 
   function clearAccountData() {
@@ -683,6 +709,11 @@ export default function App() {
     setResourceDraftDirty(false);
     setTutorReviews([]);
     setTutorStats(null);
+    setMyPresenceLastSeenAt(null);
+    setMyPresenceError(null);
+    setPresenceLastSeenByUserId({});
+    setTutorPresenceLoaded(false);
+    setTutorPresenceError(null);
     setAdminTutors([]);
     setAdminTutorCourses([]);
     setAdminCourseCatalogueRequests([]);
@@ -692,6 +723,85 @@ export default function App() {
     setAdminCourses([]);
     setAdminActions([]);
   }
+
+  useEffect(() => {
+    const userId = user?.id;
+    const isDemoUser = presentationDemo && (demoRole === "student" || demoRole === "tutor");
+    if (!userId && !isDemoUser) {
+      setMyPresenceLastSeenAt(null);
+      setMyPresenceError(null);
+      return;
+    }
+
+    setMyPresenceLastSeenAt(null);
+    setMyPresenceError(null);
+    let active = true;
+    let requestInFlight = false;
+    let lastHeartbeatAt = 0;
+    const updatePresence = async (force = false) => {
+      const currentTime = Date.now();
+      if (document.visibilityState === "hidden" || requestInFlight || (!force && currentTime - lastHeartbeatAt < 60_000)) return;
+      lastHeartbeatAt = currentTime;
+      requestInFlight = true;
+      if (presentationDemo) {
+        if (active) {
+          setMyPresenceLastSeenAt(currentTime);
+          setMyPresenceError(null);
+          setPresenceNow(currentTime);
+        }
+        requestInFlight = false;
+        return;
+      }
+
+      const client = supabase;
+      if (!client) {
+        if (active) setMyPresenceError("Presence service is not configured.");
+        requestInFlight = false;
+        return;
+      }
+
+      try {
+        const { data, error } = await client.rpc("heartbeat_user_presence");
+        if (error) throw new Error(error.message);
+        const lastSeenAt = typeof data === "string" ? Date.parse(data) : Number.NaN;
+        if (!Number.isFinite(lastSeenAt)) throw new Error("Presence service returned an invalid last-seen time.");
+        if (active) {
+          setMyPresenceLastSeenAt(lastSeenAt);
+          setMyPresenceError(null);
+          setPresenceNow(Date.now());
+        }
+      } catch (error) {
+        if (active) {
+          setMyPresenceLastSeenAt(null);
+          setMyPresenceError(error instanceof Error ? error.message : "Could not update your active status.");
+        }
+      } finally {
+        requestInFlight = false;
+      }
+    };
+    const onActivity = () => { void updatePresence(); };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void updatePresence(true);
+    };
+
+    void updatePresence(true);
+    document.addEventListener("pointerdown", onActivity, { passive: true });
+    document.addEventListener("pointermove", onActivity, { passive: true });
+    document.addEventListener("keydown", onActivity);
+    document.addEventListener("touchstart", onActivity, { passive: true });
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onVisibilityChange);
+
+    return () => {
+      active = false;
+      document.removeEventListener("pointerdown", onActivity);
+      document.removeEventListener("pointermove", onActivity);
+      document.removeEventListener("keydown", onActivity);
+      document.removeEventListener("touchstart", onActivity);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onVisibilityChange);
+    };
+  }, [user?.id, presentationDemo, demoRole]);
 
   useEffect(() => {
     if (!presentationDemo || (demoRole !== "student" && demoRole !== "tutor")) return;
@@ -2241,6 +2351,45 @@ export default function App() {
     return [...tutors.values()];
   }, [results]);
 
+  const visibleTutorIds = useMemo(() => [...new Set(groupedTutors.map((tutor) => tutor.id))], [groupedTutors]);
+
+  useEffect(() => {
+    const client = supabase;
+    if (!user || presentationDemo || !client || section !== "discover" || !visibleTutorIds.length) {
+      setPresenceLastSeenByUserId({});
+      setTutorPresenceLoaded(false);
+      setTutorPresenceError(null);
+      return;
+    }
+
+    let active = true;
+    setPresenceLastSeenByUserId({});
+    setTutorPresenceLoaded(false);
+    setTutorPresenceError(null);
+    const refreshPresence = async () => {
+      const { data, error } = await client.from("user_presence")
+        .select("user_id,last_seen_at")
+        .in("user_id", visibleTutorIds);
+      if (!active) return;
+      if (error) {
+        setPresenceLastSeenByUserId({});
+        setTutorPresenceLoaded(false);
+        setTutorPresenceError(error.message);
+        return;
+      }
+      setPresenceLastSeenByUserId(Object.fromEntries((data ?? []).map((item) => [item.user_id, Date.parse(item.last_seen_at)])));
+      setTutorPresenceLoaded(true);
+      setTutorPresenceError(null);
+    };
+
+    void refreshPresence();
+    const interval = window.setInterval(() => void refreshPresence(), 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [user?.id, presentationDemo, section, visibleTutorIds]);
+
   const filteredProgrammes = useMemo(() => {
     const search = programmeQuery.trim().toLowerCase();
     return academicProgrammes.filter((programme) =>
@@ -2468,6 +2617,8 @@ export default function App() {
       {!profileLoading && <button className="button button-primary" type="button" onClick={() => user && void loadProfile(user.id)}>Retry profile loading</button>}
     </section></main> : profile && section === "profile" ? <main id="main-content" tabIndex={-1} className="page">
       <section className="page-heading"><p className="eyebrow">YOUR ACCOUNT</p><h1>My profile{profile.is_verified && <VerifiedBadge label="TutorConnect verified member" />}</h1><p className="muted">Add a short bio and photo. Student contact details are private; tutor contact links are shown only after a student unlocks them.</p>
+        <PresenceIndicator status={myPresenceStatus} text="Your status" />
+        {myPresenceError && <p className="presence-error" role="status">Live status unavailable: {myPresenceError}</p>}
         {profile.is_verified && <p className="verified-profile-note">Your account is verified based on active account status and confirmed payment.</p>}
       </section>
       <section className="panel profile-editor">
@@ -2505,7 +2656,12 @@ export default function App() {
         </form>
       </section>
     </main> : (profile?.role === "student" || (presentationDemo && !user)) && section === "discover" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "DISCOVER"}</p><h1>{presentationDemo ? "Explore sample tutor profiles" : "Find a tutor for your course"}</h1><p className="muted">{presentationDemo ? "These fictional profiles show how course- and department-matched tutor discovery works." : "Search only approved tutors who teach the selected course and academic unit."}</p></section>
+      <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "DISCOVER"}</p><h1>{presentationDemo ? "Explore sample tutor profiles" : "Find a tutor for your course"}</h1><p className="muted">{presentationDemo ? "These fictional profiles show how course- and department-matched tutor discovery works." : "Search only approved tutors who teach the selected course and academic unit."}</p>
+        {(user || (presentationDemo && (demoRole === "student" || demoRole === "tutor"))) && <>
+          <PresenceIndicator status={myPresenceStatus} text="Your status" />
+          {myPresenceError && <p className="presence-error" role="status">Live status unavailable: {myPresenceError}</p>}
+        </>}
+      </section>
       {recentlyUnlockedContact && <section className="panel contact-box" aria-live="polite">
         <h2>Payment confirmed — tutor contact unlocked</h2>
         <ContactLinks contact={recentlyUnlockedContact} />
@@ -2525,6 +2681,7 @@ export default function App() {
       {institutionId !== "" && institutions.find((item) => item.id === institutionId)?.name === "University of Cape Coast" && <p className="source-note">
         UCC academic units follow the <a href="https://academics.ucc.edu.gh/colleges" target="_blank" rel="noreferrer">official UCC structure</a>. The <a href="https://admissions.ucc.edu.gh/catalogue/departments" target="_blank" rel="noreferrer">admissions catalogue</a> lists degree programmes, not semester course codes. Administrators add course codes from verified teaching schedules.
       </p>}
+      {user && tutorPresenceError && <p className="presence-error" role="status">Tutor activity status could not be loaded: {tutorPresenceError}</p>}
       {hasSearched && <p className="search-result-count" role="status">{busy ? "Searching for tutors…" : presentationDemo ? `${groupedTutors.length} fictional demo profile${groupedTutors.length === 1 ? "" : "s"} shown` : `${groupedTutors.length} approved tutor${groupedTutors.length === 1 ? "" : "s"} found`}</p>}
       <section className="results-grid" aria-live="polite">
         {groupedTutors.length === 0 ? <div className="empty-state"><span className="empty-icon">⌕</span><h2>{hasSearched ? "No tutors found" : "Start with a course"}</h2><p>{hasSearched ? "No approved tutors were found for that course. Try a different course code, title or academic unit." : "Enter a course code or title to see approved, relevant tutors."}</p></div> : groupedTutors.map((tutor) => {
@@ -2536,6 +2693,7 @@ export default function App() {
             <p>{tutor.bio || "Tutor profile"}</p>
             <div className="unit-label">{[tutor.college, tutor.school, tutor.department].filter(Boolean).join(" / ") || "Academic unit not assigned"}</div>
             <p className="tutor-meta">{tutor.avg_rating ? `★ ${tutor.avg_rating.toFixed(1)} (${tutor.review_count} reviews)` : "No reviews yet"} · {tutor.rate == null ? "Rate not listed" : `GHS ${tutor.rate}/hr`} · {tutor.delivery || "Delivery to be confirmed"}</p>
+            {user && !presentationDemo && <PresenceIndicator status={tutorPresenceLoaded ? presenceStatusAt(presenceLastSeenByUserId[tutor.id] ?? null, presenceNow) : "unknown"} />}
             {matchingResources.length > 0 && <div className="resource-list"><h3>Teaching previews & learning resources</h3>{matchingResources.map((resource) => <a key={resource.id} href={resource.signed_url || resource.url || undefined} target="_blank" rel="noreferrer"><span>{resource.course_code ? `${resource.course_code} · ` : "General · "}{resourceLabel(resource.resource_type)}</span><b>{resource.title}</b>{resource.description && <small>{resource.description}</small>}</a>)}<small>Course links are shown only for the matching subjects. Third-party materials are identified by their source.</small></div>}
             {contacts[tutor.id] ? <div className="contact-box"><b>Contact unlocked</b><ContactLinks contact={contacts[tutor.id]} /></div>
               : presentationDemo ? demoRole === "student"
@@ -2558,13 +2716,19 @@ export default function App() {
         })}
       </section>
     </main> : profile?.role === "student" && section === "student" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">STUDENT WORKSPACE</p><h1>Your activity{profile.is_verified && <VerifiedBadge label="TutorConnect verified member" />}</h1><p className="muted">Your reviews and private reports in one place.</p></section>
+      <section className="page-heading"><p className="eyebrow">STUDENT WORKSPACE</p><h1>Your activity{profile.is_verified && <VerifiedBadge label="TutorConnect verified member" />}</h1><p className="muted">Your reviews and private reports in one place.</p>
+        <PresenceIndicator status={myPresenceStatus} text="Your status" />
+        {myPresenceError && <p className="presence-error" role="status">Live status unavailable: {myPresenceError}</p>}
+      </section>
       <div className="two-column">
         <section className="panel"><h2>My reviews</h2>{studentReviews.length ? studentReviews.map((item) => <article className="list-item" key={item.id}><b>{item.rating} / 5 stars</b><p>{item.comment || "No written comment."}</p><small>{dateLabel(item.created_at)}</small></article>) : <p className="muted">No reviews submitted yet. Unlock a tutor’s contact details to share feedback.</p>}</section>
         <section className="panel"><h2>My reports</h2>{studentReports.length ? studentReports.map((item) => <article className="list-item" key={item.id}><div className="row-between"><b>{item.category}</b><span className={`status ${item.status}`}>{item.status}</span></div><p>{item.description}</p>{item.resolution && <p className="resolution">Outcome: {item.resolution}</p>}<small>{dateLabel(item.created_at)}</small></article>) : <p className="muted">You have no reports.</p>}</section>
       </div>
     </main> : profile?.role === "tutor" && section === "tutor" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">TUTOR WORKSPACE</p><h1>Your teaching dashboard{tutorVerified && <span className="verified-mark verified-mark-large" role="img" aria-label="TutorConnect verified tutor" title="Approved tutor with an active, Paystack-verified plan"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg></span>}</h1><p className="muted">Manage your profile, course requests, visibility and student feedback.</p></section>
+      <section className="page-heading"><p className="eyebrow">TUTOR WORKSPACE</p><h1>Your teaching dashboard{tutorVerified && <span className="verified-mark verified-mark-large" role="img" aria-label="TutorConnect verified tutor" title="Approved tutor with an active, Paystack-verified plan"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg></span>}</h1><p className="muted">Manage your profile, course requests, visibility and student feedback.</p>
+        <PresenceIndicator status={myPresenceStatus} text="Your status" />
+        {myPresenceError && <p className="presence-error" role="status">Live status unavailable: {myPresenceError}</p>}
+      </section>
       <div className="stats-grid">
         <div className="stat-card"><span>Profile status</span><b className={`status ${tutorProfile?.status || "pending"}`}>{tutorProfile?.status || "Loading"}</b></div>
         <div className="stat-card"><span>Verified plan</span><b>{tutorVerified ? "Active" : "Not active"}</b></div>

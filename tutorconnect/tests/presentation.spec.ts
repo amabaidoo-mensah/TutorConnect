@@ -58,6 +58,7 @@ test("presentation course and programme pages use clearly identified sample cont
 
 test("student demo can complete a simulated unlock and receive a receipt", async ({ page }) => {
   await page.goto("/?demo=1&role=student");
+  await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toHaveCount(0);
   await page.getByLabel("Course code or title").fill("CS101");
   await page.getByRole("button", { name: "Search tutors" }).click();
 
@@ -67,6 +68,7 @@ test("student demo can complete a simulated unlock and receive a receipt", async
   await expect(page.locator(".demo-receipt")).toContainText("Payment method");
   await expect(page.locator(".demo-receipt")).toContainText("Simulated demo");
   await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toBeVisible();
   await expect(page.getByText("Contact unlocked", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Email: tutor.demo@example.com" }).first()).toBeVisible();
 });
@@ -74,11 +76,15 @@ test("student demo can complete a simulated unlock and receive a receipt", async
 test("tutor demo can activate a plan and purchase a resource publishing credit", async ({ page }) => {
   await page.goto("/?demo=1&role=tutor");
   await expect(page.getByRole("heading", { name: /Your teaching dashboard/ })).toBeVisible();
+  await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "TutorConnect verified tutor" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Choose monthly" }).click();
   await expect(page.getByRole("dialog", { name: "Monthly tutor listing plan" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Active", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "TutorConnect verified tutor" })).toBeVisible();
 
   await page.getByRole("button", { name: "Buy one GHS 50 resource credit" }).click();
   await expect(page.getByRole("dialog", { name: "Tutor resource publishing credit" })).toBeVisible();

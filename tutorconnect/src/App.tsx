@@ -705,7 +705,7 @@ export default function App() {
       bio: role === "tutor" ? "Fictional tutor approved for the presentation demo." : "Fictional student account for the presentation demo.",
       avatar_path: null,
       avatar_url: null,
-      is_verified: role === "tutor",
+      is_verified: false,
       phone: role === "student" ? "+233 20 000 0001" : null,
       contact_email: role === "student" ? "student.demo@example.com" : null,
       whatsapp_url: null,

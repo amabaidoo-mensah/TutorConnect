@@ -82,4 +82,23 @@ test("tutor demo can activate a plan and purchase a resource publishing credit",
   await expect(page.getByRole("dialog", { name: "Tutor resource publishing credit" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText(/Unused publishing credits: 1/)).toBeVisible();
+
+  await page.locator(".course-search input[name='course_query']").fill("BUS");
+  await page.getByRole("button", { name: "Search catalogue" }).click();
+  await expect(page.getByText("BUS204 · Business Management")).toBeVisible();
+  await page.getByRole("button", { name: "Request approval" }).click();
+  await expect(page.getByText("Demo course request sent for administrator approval.")).toBeVisible();
+  await expect(page.locator(".list-item").filter({ hasText: "BUS204 · Business Management" })).toContainText("pending");
+
+  await page.getByLabel("Approved course").selectOption("-2");
+  await page.getByLabel("Resource type").selectOption("teaching_video");
+  await page.getByLabel("Title", { exact: true }).fill("Demo teaching video");
+  await page.getByLabel("Or external HTTPS link").fill("https://youtu.be/2WtPyqwTLKM");
+  await page.getByRole("button", { name: "Publish resource" }).click();
+  await expect(page.getByRole("link", { name: "Demo teaching video" })).toBeVisible();
+
+  await page.goto("/?demo=1&role=student");
+  await page.getByLabel("Course code or title").fill("CS101");
+  await page.getByRole("button", { name: "Search tutors" }).click();
+  await expect(page.getByRole("link", { name: "Demo teaching video" })).toBeVisible();
 });

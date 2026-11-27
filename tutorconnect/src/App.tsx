@@ -94,6 +94,46 @@ function ContactLinks({ contact }: { contact: ContactDetails }) {
 function optionalFormValue(values: FormData, name: string) {
   return String(values.get(name) || "").trim() || null;
 }
+function readDemoResources(): TutorResource[] {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem("tutorconnect-demo-resources") || "[]");
+    if (!Array.isArray(stored)) return [];
+    return stored.filter((item: unknown): item is TutorResource =>
+      item !== null
+      && typeof item === "object"
+      && "id" in item && typeof item.id === "number"
+      && "tutor_id" in item && typeof item.tutor_id === "string"
+      && "course_id" in item && typeof item.course_id === "number"
+      && "course_code" in item && typeof item.course_code === "string"
+      && "resource_type" in item && ["teaching_video", "course_resource", "past_questions"].includes(String(item.resource_type))
+      && "title" in item && typeof item.title === "string"
+      && "url" in item && typeof item.url === "string"
+      && "created_at" in item && typeof item.created_at === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+async function paymentErrorMessage(error: unknown) {
+  let detail = error instanceof Error ? error.message : "The payment request failed.";
+  let status: number | null = null;
+  if (error && typeof error === "object" && "context" in error && error.context instanceof Response) {
+    const response = error.context;
+    status = response.status;
+    try {
+      const body: unknown = await response.clone().json();
+      if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
+        detail = body.error;
+      } else if (body && typeof body === "object" && "message" in body && typeof body.message === "string") {
+        detail = body.message;
+      }
+    } catch {
+      detail = response.statusText || detail;
+    }
+  }
+  const statusText = status ? ` (HTTP ${status})` : "";
+  return `Payment service${statusText}: ${detail} If this is a live checkout, verify the payments Edge Function is deployed and PAYSTACK_SECRET is configured.`;
+}
 function VerifiedBadge({ label }: { label: string }) {
   return <span className="verified-mark" role="img" aria-label={label} title={label}>
     <svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg>
@@ -500,6 +540,12 @@ const presentationProgrammes: AcademicProgramme[] = [
   { id: -2, programme_title: "Example BSc Business Administration", award: "Bachelor's degree", level: "Undergraduate", catalogue_unit: "Management Studies", college_name: "College of Science and Technology", school_name: "School of Business", source_url: "" },
   { id: -3, programme_title: "Example MSc Information Technology", award: "Master's degree", level: "Postgraduate", catalogue_unit: "Computer Science and Information Technology", college_name: "College of Science and Technology", school_name: "School of Physical Sciences", source_url: "" },
 ];
+const presentationDemoCourses: Course[] = [
+  { id: -2, institution_id: -1, code: "CS101", title: "Introduction to Computing", academic_unit_id: -3, source_url: null },
+  { id: -3, institution_id: -1, code: "CS102", title: "Programming Fundamentals", academic_unit_id: -3, source_url: null },
+  { id: -1, institution_id: -1, code: "MATH120", title: "Linear Algebra", academic_unit_id: -6, source_url: null },
+  { id: -4, institution_id: -1, code: "BUS204", title: "Business Management", academic_unit_id: -5, source_url: null },
+];
 
 export default function App() {
   const presentationDemo = new URLSearchParams(window.location.search).get("demo") === "1";
@@ -533,6 +579,7 @@ export default function App() {
   const [tutorReviews, setTutorReviews] = useState<Review[]>([]);
   const [tutorStats, setTutorStats] = useState<TutorStats | null>(null);
   const [courseOptions, setCourseOptions] = useState<Course[]>([]);
+  const [courseSearchPerformed, setCourseSearchPerformed] = useState(false);
   const [adminTutors, setAdminTutors] = useState<AdminTutor[]>([]);
   const [adminTutorCourses, setAdminTutorCourses] = useState<AdminTutorCourse[]>([]);
   const [adminProfiles, setAdminProfiles] = useState<AdminProfile[]>([]);
@@ -642,7 +689,10 @@ export default function App() {
         { id: -1, status: "approved", courses: { id: -2, institution_id: -1, code: "CS101", title: "Introduction to Computing", academic_unit_id: -3, source_url: null } },
         { id: -2, status: "approved", courses: { id: -3, institution_id: -1, code: "CS102", title: "Programming Fundamentals", academic_unit_id: -3, source_url: null } },
       ]);
-      setTutorResources(presentationTutorResources.filter((resource) => resource.tutor_id === id));
+      setTutorResources([
+        ...presentationTutorResources.filter((resource) => resource.tutor_id === id),
+        ...readDemoResources().filter((resource) => resource.tutor_id === id),
+      ]);
       try {
         const storedCredits = JSON.parse(localStorage.getItem("tutorconnect-demo-resource-credits") || "[]");
         setResourceCredits(Array.isArray(storedCredits) ? storedCredits : []);
@@ -653,6 +703,7 @@ export default function App() {
     } else {
       setContacts({});
       setRecentlyUnlockedContact(null);
+      setTutorResources(readDemoResources());
     }
   }, [presentationDemo, demoRole]);
 
@@ -740,6 +791,7 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (presentationDemo && (demoRole === "student" || demoRole === "tutor")) return;
     if (!supabase) return;
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUserId = session?.user?.id ?? null;
@@ -917,6 +969,11 @@ export default function App() {
 
   useEffect(() => {
     if (!profile) return;
+    if (presentationDemo) {
+      if (profile.role === "tutor") setSection("tutor");
+      else if (profile.role === "student") setSection("discover");
+      return;
+    }
     if (profile.role === "tutor") {
       setSection("tutor");
       void loadTutorDashboard(profile.id);
@@ -1072,7 +1129,11 @@ export default function App() {
       );
       setResults(matchingTutors);
       setContacts({});
-      const matchingResources = presentationTutorResources.filter((resource) =>
+      const demoResources = [
+        ...presentationTutorResources,
+        ...tutorResources.filter((resource) => resource.resource_payment_id?.startsWith("demo-resource-")),
+      ];
+      const matchingResources = demoResources.filter((resource) =>
         matchingTutors.some((tutor) => tutor.id === resource.tutor_id && tutor.course_code === resource.course_code),
       );
       setResourcesByTutor(matchingResources.reduce<Record<string, TutorResource[]>>((grouped, resource) => {
@@ -1226,19 +1287,22 @@ export default function App() {
       return;
     }
     setBusy(true);
-    const { data, error } = await supabase.functions.invoke("payments", {
-      body: { action: "contact", tutor_id: tutorId, callback_url: location.origin },
-    });
-    setBusy(false);
-    if (error) setNotice(data?.error
-      ? `Payment service: ${data.error}`
-      : "Edge Function payment call failed. Confirm the payments function is deployed and PAYSTACK_SECRET is configured, then retry.");
-    else if (data?.already_unlocked) {
-      setNotice("You have already unlocked this tutor's contact details.");
-      await runSearch();
+    try {
+      const { data, error } = await supabase.functions.invoke("payments", {
+        body: { action: "contact", tutor_id: tutorId, callback_url: location.origin },
+      });
+      if (error) setNotice(await paymentErrorMessage(error));
+      else if (data?.already_unlocked) {
+        setNotice("You have already unlocked this tutor's contact details.");
+        await runSearch();
+      }
+      else if (data?.url) location.href = data.url;
+      else setNotice(data?.error || "Payment could not be started. Please try again.");
+    } catch (error) {
+      setNotice(await paymentErrorMessage(error));
+    } finally {
+      setBusy(false);
     }
-    else if (data?.url) location.href = data.url;
-    else setNotice("Payment could not be started. Please try again.");
   }
 
   async function startPremiumCheckout(plan: "monthly" | "semester") {
@@ -1271,7 +1335,7 @@ export default function App() {
         body: { action: "premium", plan, callback_url: location.origin },
       });
       if (error) {
-        setNotice(error.message);
+        setNotice(await paymentErrorMessage(error));
         return;
       }
       if (!data?.url || !/^https:\/\/checkout\.paystack\.com\//.test(data.url)) {
@@ -1313,7 +1377,7 @@ export default function App() {
         body: { action: "resource", callback_url: location.origin },
       });
       if (error) {
-        setNotice(error.message);
+        setNotice(await paymentErrorMessage(error));
         return;
       }
       if (!data?.url || !/^https:\/\/checkout\.paystack\.com\//.test(data.url)) {
@@ -1371,7 +1435,7 @@ export default function App() {
   }
 
   async function loadTutorDashboard(id: string) {
-    if (!supabase) return;
+    if (presentationDemo || !supabase) return;
     const [profileResult, contactResult, coursesResult, reviewsResult, statsResult, resourcesResult, creditsResult] = await Promise.all([
       supabase.from("tutor_profiles").select("id,bio,qualifications,rate,delivery,availability,status,premium_until,views").eq("id", id).maybeSingle(),
       supabase.from("tutor_contacts")
@@ -1536,6 +1600,18 @@ export default function App() {
         setNotice("Choose either a file upload or an external link, not both.");
         return;
       }
+      if (file && file.size > resourceFileSizeLimit) {
+        setNotice("Resource files must be no larger than 50 MB.");
+        return;
+      }
+      if (file && !resourceFileExtensions[file.type]) {
+        setNotice("Choose an MP4/WebM video, PDF, Word/PowerPoint document, text file or JPG/PNG/WebP image.");
+        return;
+      }
+      if (file && String(values.get("resource_type")) === "teaching_video" && !file.type.startsWith("video/")) {
+        setNotice("Teaching video uploads must be MP4 or WebM videos.");
+        return;
+      }
       if (!file && !url) {
         setNotice("Choose a file or provide an external HTTPS link.");
         return;
@@ -1578,13 +1654,22 @@ export default function App() {
         created_at: new Date().toISOString(),
       };
       setTutorResources((current) => [resource, ...current]);
+      let resourcePersistenceWarning = "";
+      if (!file) {
+        try {
+          const stored = readDemoResources();
+          localStorage.setItem("tutorconnect-demo-resources", JSON.stringify([resource, ...stored].slice(0, 100)));
+        } catch {
+          resourcePersistenceWarning = " It will be available only until this tab is closed because browser storage is unavailable.";
+        }
+      }
       setResourceCredits((current) => {
         const next = current.filter((credit) => credit !== paymentId);
         localStorage.setItem("tutorconnect-demo-resource-credits", JSON.stringify(next));
         return next;
       });
       form.reset();
-      setNotice("Demo resource published successfully. The publishing credit has been used.");
+      setNotice(`Demo resource published successfully. The publishing credit has been used.${resourcePersistenceWarning}`);
       return;
     }
     if (!supabase || !profile || profile.role !== "tutor") return;
@@ -1770,11 +1855,22 @@ export default function App() {
 
   async function searchCourseOptions(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase || institutionId === "") return;
+    setCourseSearchPerformed(true);
     const values = new FormData(event.currentTarget);
     const term = String(values.get("course_query")).trim();
     if (!term) {
       setCourseOptions([]);
+      return;
+    }
+    if (presentationDemo) {
+      setCourseOptions(presentationDemoCourses.filter((course) =>
+        `${course.code} ${course.title}`.toLowerCase().includes(term.toLowerCase()),
+      ));
+      setNotice("");
+      return;
+    }
+    if (!supabase || institutionId === "") {
+      setNotice("Choose an institution before searching the course catalogue.");
       return;
     }
     const [codeResult, titleResult] = await Promise.all([
@@ -1788,8 +1884,28 @@ export default function App() {
 
   async function requestCourse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase || !profile) return;
     const values = new FormData(event.currentTarget);
+    if (presentationDemo) {
+      const courseId = Number(values.get("course_id"));
+      const course = presentationDemoCourses.find((item) => item.id === courseId);
+      if (!profile || profile.role !== "tutor" || !course) {
+        setNotice("Choose a demo catalogue course from the tutor demo.");
+        return;
+      }
+      if (tutorCourses.some((item) => item.courses?.id === courseId)) {
+        setNotice("This course is already on your demo tutor profile.");
+        return;
+      }
+      setTutorCourses((current) => [...current, {
+        id: Date.now(),
+        status: "pending",
+        courses: course,
+      }]);
+      setCourseOptions((current) => current.filter((item) => item.id !== courseId));
+      setNotice("Demo course request sent for administrator approval.");
+      return;
+    }
+    if (!supabase || !profile) return;
     const { error } = await supabase.from("tutor_courses").insert({
       tutor_id: profile.id,
       course_id: Number(values.get("course_id")),
@@ -2026,7 +2142,10 @@ export default function App() {
       <a className="button button-outline" href="/">Exit demo</a>
     </aside>}
 
-    {notice && <div className="notice" role="status">{notice}<button aria-label="Dismiss message" onClick={() => setNotice("")}>×</button></div>}
+    {notice && <div className="notice" role="status">{notice}
+      {notice.startsWith("Payment service") && <a className="notice-demo-link" href={`/?demo=1&role=${profile?.role === "tutor" ? "tutor" : "student"}`}>Open the no-charge demo</a>}
+      <button aria-label="Dismiss message" onClick={() => setNotice("")}>×</button>
+    </div>}
 
     {demoReceipt && presentationDemo && <div className="demo-payment-backdrop" role="presentation">
       <section className="demo-receipt" role="dialog" aria-modal="true" aria-labelledby="demo-receipt-title">
@@ -2323,6 +2442,7 @@ export default function App() {
           <form className="mini-form course-search" onSubmit={(event) => void searchCourseOptions(event)}><h3>Find a course to teach</h3>
             <label>Course code or title<input name="course_query" placeholder="Search the verified course catalogue" required /></label><button className="button button-outline">Search catalogue</button>
           </form>
+          {courseSearchPerformed && courseOptions.length === 0 && <p className="setup-note" role="status">No matching courses are available in the verified course catalogue. Courses must be added by an administrator using an official course outline or teaching schedule. <a href="/?demo=1&role=tutor">Try the sample tutor catalogue</a>.</p>}
           {courseOptions.map((course) => <form className="course-option" key={course.id} onSubmit={(event) => void requestCourse(event)}><input type="hidden" name="course_id" value={course.id} /><div><b>{course.code} · {course.title}</b><small>{unitPath(course.academic_unit_id, units)}</small></div><button className="button button-outline">Request approval</button></form>)}
         </section>
       </div>

@@ -14,7 +14,7 @@ The interface can be previewed without Supabase credentials, but authentication 
 
 ## Presentation demo
 
-Open `/?demo=1` (or choose **Presentation demo** in the navigation) to show fictional tutor profiles, example programmes, and a sample learning-resource library. The page labels mock content, does not write demo records to Supabase, and disables contact unlocks and payments for demo profiles. **Create a real account** opens the normal Supabase signup flow; use a valid project URL/key and the project’s email-confirmation settings. Exiting the demo returns to the live app.
+Open `/?demo=1` (or choose **Presentation demo** in the navigation) to show fictional tutor profiles, example programmes, and a sample learning-resource library. Use **Demo as student** (`/?demo=1&role=student`) to simulate a GHS 10 contact unlock, or **Demo as tutor** (`/?demo=1&role=tutor`) to simulate tutor-plan and GHS 50 resource-credit payments, request sample courses, and publish sample links/files. Demo receipts are explicitly marked simulated and downloadable; no money is charged and no demo payment is sent to Supabase. Demo course requests and uploaded files are in-memory for that browser tab; published HTTPS links are stored locally in the same browser so the student demo can view them. **Create a real account** opens the normal Supabase signup flow; use a valid project URL/key and the project’s email-confirmation settings. Exiting the demo returns to the live app.
 
 ## Netlify deployment
 

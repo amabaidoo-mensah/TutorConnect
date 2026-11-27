@@ -2514,7 +2514,7 @@ export default function App() {
   const unresolvedReports = adminReports.filter((item) => item.status !== "resolved").length;
   const pendingTutors = adminTutors.filter((item) => item.status === "pending").length;
 
-  return <div className="app-shell">
+  return <div className={`app-shell ${!user && (!presentationDemo || demoAuthRequested) ? "app-shell-auth" : ""}`}>
     <a className="skip-link" href="#main-content">Skip to main content</a>
     <header className="app-header">
       <a className="brand" href="/" aria-label="TutorConnect home" onClick={(event) => { event.preventDefault(); navigate(profile?.role === "tutor" ? "tutor" : profile?.role === "admin" ? "admin" : "discover"); }}>
@@ -2569,7 +2569,7 @@ export default function App() {
 
     {authMode === "update" && user ? <main id="main-content" tabIndex={-1} className="auth-layout">
       <section className="auth-story"><div className="auth-brand-lockup"><span className="brand-mark">TC</span><span>Secure account recovery</span></div><p className="eyebrow">PASSWORD RESET</p><h1>Choose a new <em>password.</em></h1><p className="lead">Set a strong password to secure your TutorConnect account.</p></section>
-      <section className="auth-card" aria-labelledby="auth-heading"><p className="eyebrow">ACCOUNT SECURITY</p><h2 id="auth-heading">Set a new password</h2>
+      <section className="auth-card auth-card-login" aria-labelledby="auth-heading"><div className="auth-logo" aria-hidden="true"><span className="brand-mark">TC</span></div><p className="eyebrow">ACCOUNT SECURITY</p><h2 id="auth-heading">Set a new password</h2>
         <form className="stack-form" onSubmit={(event) => void authenticate(event)}>
           <label>New password<div className="password-field"><input name="p" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={8} required /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>{showPassword ? "Hide" : "Show"}</button></div></label>
           <small className="muted">Use at least 8 characters. Avoid reusing a password from another site.</small>
@@ -2634,24 +2634,31 @@ export default function App() {
           <article><span>03</span><div><b>Stay in control</b><small>Private contact details unlock only after verified payment.</small></div></article>
         </div>
       </section>
-      <section className="auth-card" aria-labelledby="auth-heading">
+      <section className={`auth-card ${authMode === "login" ? "auth-card-login" : ""}`} aria-labelledby="auth-heading">
+        <div className="auth-logo" aria-hidden="true"><span className="brand-mark">TC</span></div>
         <p className="eyebrow">{authMode === "login" ? "ACCOUNT ACCESS" : authMode === "signup" ? "CREATE ACCOUNT" : "PASSWORD RECOVERY"}</p>
-        <h2 id="auth-heading">{authMode === "login" ? "Log in to TutorConnect" : authMode === "signup" ? "Create your account" : "Reset your password"}</h2>
-        <p className="auth-card-lead">{authMode === "login" ? "Welcome back. Sign in to continue." : authMode === "signup" ? "Join as a student or apply as a tutor." : "Enter your email and we’ll send you a secure reset link."}</p>
+        <h2 id="auth-heading">{authMode === "login" ? "Welcome back" : authMode === "signup" ? "Create your account" : "Reset your password"}</h2>
+        <p className="auth-card-lead">{authMode === "login" ? "Sign in to continue." : authMode === "signup" ? "Join as a student or apply as a tutor." : "Enter your email and we’ll send you a secure reset link."}</p>
         {authMode !== "forgot" && authMode !== "update" && <div className="auth-switch" role="group" aria-label="Account access">
           <button type="button" aria-pressed={authMode === "login"} onClick={() => { setAuthMode("login"); setShowPassword(false); }}>Log in</button>
           <button type="button" aria-pressed={authMode === "signup"} onClick={() => { setAuthMode("signup"); setShowPassword(false); }}>Sign up</button>
         </div>}
-        <form className="stack-form" onSubmit={(event) => void authenticate(event)}>
+        <form className="stack-form auth-form" onSubmit={(event) => void authenticate(event)}>
           {authMode === "signup" && <>
             <label>Full name<input name="n" autoComplete="name" required /></label>
             <label>Account type<select name="r"><option value="student">Student</option><option value="tutor">Tutor (review required)</option></select></label>
           </>}
-          {authMode !== "update" && <label>Email<input name="e" type="email" autoComplete="email" required /></label>}
+          {authMode !== "update" && <label>Email<span className="auth-input-wrap">
+            <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" /><path d="M5 20v-1.5a7 7 0 0 1 14 0V20z" /></svg>
+            <input name="e" type="email" autoComplete="email" required />
+          </span></label>}
           {authMode !== "forgot" && <label>{authMode === "update" ? "New password" : "Password"}
-            <div className="password-field">
+            <div className="password-field auth-input-wrap">
+              <svg className="auth-input-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3" /></svg>
               <input name="p" type={showPassword ? "text" : "password"} autoComplete={authMode === "login" ? "current-password" : "new-password"} minLength={8} required />
-              <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>{showPassword ? "Hide" : "Show"}</button>
+              <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2.5 12s3.2-6 9.5-6 9.5 6 9.5 6-3.2 6-9.5 6-9.5-6-9.5-6z" /><circle cx="12" cy="12" r="2.5" />{showPassword && <path d="m4 4 16 16" />}</svg>
+              </button>
             </div>
           </label>}
           {authMode === "update" && <small className="muted">Use at least 8 characters. Avoid reusing a password from another site.</small>}
@@ -2665,6 +2672,7 @@ export default function App() {
         {authMode === "forgot" && <button className="back-to-login" type="button" onClick={() => setAuthMode("login")}>← Back to log in</button>}
         {presentationDemo && demoAuthRequested && <a className="back-to-login" href="/?demo=1">Return to presentation demo</a>}
         {authMode === "signup" && <p className="small-note">Tutor accounts are created as pending applications. An administrator must approve your profile before students can find you.</p>}
+        {authMode === "login" && <p className="auth-card-footer">LEARN · CONNECT · GROW TOGETHER</p>}
       </section>
     </main> : user && !profile ? <main id="main-content" tabIndex={-1} className="page"><section className="empty-state" role={profileLoadError ? "alert" : "status"}>
       <h2>{profileLoading ? "Loading your account" : "Your account profile is unavailable"}</h2>

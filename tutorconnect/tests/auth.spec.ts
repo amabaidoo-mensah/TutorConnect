@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test("login and signup modes expose the expected fields", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Log in to TutorConnect" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await expect(page.getByRole("button", { name: "UCC programmes" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /programme catalogue/i })).toHaveCount(0);
   await expect(page.locator('input[name="e"]')).toHaveAttribute("type", "email");
@@ -58,7 +58,7 @@ test("signup with email confirmation enabled asks the user to confirm before log
 
   await expect(page.getByText(/your account was created\. confirm your email using the link we sent/i)).toBeVisible();
   expect(earlyLoginAttempted).toBe(false);
-  await expect(page.getByRole("heading", { name: "Log in to TutorConnect" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
 });
 
 test("login normalizes email casing", async ({ page }) => {
@@ -145,7 +145,7 @@ test("a suspended student is signed out and shown account access guidance", asyn
   }
 
   await expect(page.getByText(/your account has been suspended by an administrator/i).first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Log in to TutorConnect" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Log out" })).toHaveCount(0);
 });
 
@@ -237,7 +237,7 @@ test("duplicate signup moves the user to login guidance", async ({ page }) => {
   await page.locator('form.stack-form button[name="up"]').click();
 
   await expect(page.getByText(/email is already registered/i)).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Log in to TutorConnect" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
 });
 
 test("login page explains that admin access is assigned", async ({ page }) => {

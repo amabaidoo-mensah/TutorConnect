@@ -113,6 +113,98 @@ test("a student receives a verification badge after a paid contact unlock is fou
   await expect(page.getByRole("img", { name: "TutorConnect verified member" }).first()).toBeVisible();
 });
 
+test("a suspended student is signed out and shown account access guidance", async ({ page }) => {
+  const user = {
+    id: "33333333-3333-3333-3333-333333333333",
+    email: `suspended-${Date.now()}@example.com`,
+    email_confirmed_at: new Date().toISOString(),
+  };
+  await page.route("**/auth/v1/token?grant_type=password", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    json: {
+      access_token: "test-access-token",
+      refresh_token: "test-refresh-token",
+      expires_in: 3600,
+      token_type: "bearer",
+      user,
+    },
+  }));
+  await page.route("**/auth/v1/logout*", (route) => route.fulfill({ status: 204, body: "" }));
+  await page.route("**/rest/v1/profiles?*", (route) => route.fulfill({
+    json: [{ id: user.id, full_name: "Suspended Student", role: "student", bio: null, avatar_path: null, account_status: "suspended" }],
+  }));
+
+  await page.goto("/");
+  await page.locator('input[name="e"]').fill(user.email);
+  await page.locator('input[name="p"]').fill("TutorTest123!");
+  await page.getByRole("button", { name: "Log in", exact: true }).last().click();
+  if (await page.getByText(/add vite_supabase_url and vite_supabase_anon_key/i).isVisible()) {
+    test.skip(true, "Requires Supabase authentication to be configured.");
+  }
+
+  await expect(page.getByText(/your account has been suspended by an administrator/i).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Log in to TutorConnect" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Log out" })).toHaveCount(0);
+});
+
+test("admin dashboard displays exact student and tutor totals", async ({ page }) => {
+  const user = {
+    id: "44444444-4444-4444-4444-444444444444",
+    email: `admin-${Date.now()}@example.com`,
+    email_confirmed_at: new Date().toISOString(),
+  };
+  await page.route("**/auth/v1/token?grant_type=password", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    json: {
+      access_token: "test-access-token",
+      refresh_token: "test-refresh-token",
+      expires_in: 3600,
+      token_type: "bearer",
+      user,
+    },
+  }));
+  await page.route("**/rest/v1/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/profiles")) {
+      if (request.method() === "HEAD") {
+        const total = url.searchParams.get("role") === "eq.student" ? 14 : 6;
+        await route.fulfill({
+          status: 200,
+          headers: {
+            "content-range": `*/${total}`,
+            "access-control-expose-headers": "content-range",
+          },
+          body: "",
+        });
+      } else if (url.searchParams.get("select")?.includes("bio")) {
+        await route.fulfill({ json: [{ id: user.id, full_name: "Test Admin", role: "admin", account_status: "active", bio: null, avatar_path: null }] });
+      } else {
+        await route.fulfill({ json: [
+          { id: user.id, full_name: "Test Admin", role: "admin", account_status: "active" },
+          { id: "55555555-5555-5555-5555-555555555555", full_name: "Student", role: "student", account_status: "active" },
+          { id: "66666666-6666-6666-6666-666666666666", full_name: "Tutor", role: "tutor", account_status: "active" },
+        ] });
+      }
+      return;
+    }
+    await route.fulfill({ json: [] });
+  });
+
+  await page.goto("/");
+  await page.locator('input[name="e"]').fill(user.email);
+  await page.locator('input[name="p"]').fill("TutorTest123!");
+  await page.getByRole("button", { name: "Log in", exact: true }).last().click();
+  if (await page.getByText(/add vite_supabase_url and vite_supabase_anon_key/i).isVisible()) {
+    test.skip(true, "Requires Supabase authentication to be configured.");
+  }
+
+  await expect(page.locator(".stat-card").filter({ hasText: "Total students" }).locator("b")).toHaveText("14");
+  await expect(page.locator(".stat-card").filter({ hasText: "Total tutors" }).locator("b")).toHaveText("6");
+});
+
 test("invalid credentials explain password recovery", async ({ page }) => {
   await page.route("**/auth/v1/token?grant_type=password", (route) => route.fulfill({
     status: 400,

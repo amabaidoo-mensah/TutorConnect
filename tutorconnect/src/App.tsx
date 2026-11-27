@@ -79,7 +79,7 @@ type CourseCatalogueRequest = {
 type TutorStats = { profile_views: number; contact_unlocks: number; review_count: number; average_rating: number | null };
 type AdminTutor = { id: string; bio: string | null; qualifications: string | null; status: string };
 type AdminTutorCourse = { id: number; tutor_id: string; status: string; courses: Course | null };
-type AdminProfile = { id: string; full_name: string | null; role: Role };
+type AdminProfile = { id: string; full_name: string | null; role: Role; account_status: string };
 type PresenceStatus = "active" | "inactive" | "unknown";
 type AdminAction = { id: number; admin_id: string; target_id: string; action: string; reason: string; created_at: string };
 type DemoPaymentReceipt = {
@@ -658,6 +658,8 @@ export default function App() {
   const [adminTutorCourses, setAdminTutorCourses] = useState<AdminTutorCourse[]>([]);
   const [adminCourseCatalogueRequests, setAdminCourseCatalogueRequests] = useState<CourseCatalogueRequest[]>([]);
   const [adminProfiles, setAdminProfiles] = useState<AdminProfile[]>([]);
+  const [adminStudentCount, setAdminStudentCount] = useState<number | null>(null);
+  const [adminTutorCount, setAdminTutorCount] = useState<number | null>(null);
   const [adminReports, setAdminReports] = useState<Report[]>([]);
   const [adminReviews, setAdminReviews] = useState<Review[]>([]);
   const [adminCourses, setAdminCourses] = useState<Course[]>([]);
@@ -720,11 +722,53 @@ export default function App() {
     setAdminTutorCourses([]);
     setAdminCourseCatalogueRequests([]);
     setAdminProfiles([]);
+    setAdminStudentCount(null);
+    setAdminTutorCount(null);
     setAdminReports([]);
     setAdminReviews([]);
     setAdminCourses([]);
     setAdminActions([]);
   }
+
+  async function lockInactiveAccount(status: string) {
+    const statusLabel = status === "suspended" || status === "removed" ? status : "restricted";
+    const message = `Your account has been ${statusLabel} by an administrator. Contact support if you believe this is a mistake.`;
+    setProfile(null);
+    setProfileLoadError(message);
+    setProfileLoading(false);
+    setNotice(message);
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) setNotice(`${message} Sign-out could not be completed: ${error.message}`);
+    } catch (error) {
+      setNotice(`${message} Sign-out could not be completed: ${error instanceof Error ? error.message : "unknown error"}`);
+    }
+  }
+
+  useEffect(() => {
+    if (!supabase || presentationDemo || !user || !profile || profile.role === "admin") return;
+    const client = supabase;
+    let active = true;
+    let requestInFlight = false;
+    const checkAccountStatus = async () => {
+      if (requestInFlight) return;
+      requestInFlight = true;
+      const { data, error } = await client.from("profiles")
+        .select("account_status")
+        .eq("id", user.id)
+        .maybeSingle();
+      requestInFlight = false;
+      if (active && !error && data && data.account_status !== "active") {
+        await lockInactiveAccount(data.account_status);
+      }
+    };
+    const interval = window.setInterval(() => void checkAccountStatus(), 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [user?.id, profile?.id, profile?.role, presentationDemo]);
 
   useEffect(() => {
     const userId = user?.id;
@@ -901,6 +945,10 @@ export default function App() {
       }
       if (!data) throw new Error("Your login is active, but no profile was found. Please retry or contact support.");
       if (authUserId.current && authUserId.current !== id) return;
+      if (data.account_status !== "active") {
+        await lockInactiveAccount(data.account_status);
+        return;
+      }
 
       let avatarUrl: string | null = null;
       if (data.avatar_path) {
@@ -2220,17 +2268,19 @@ export default function App() {
 
   async function loadAdminDashboard() {
     if (!supabase) return;
-    const [tutorsResult, tutorCoursesResult, catalogueRequestsResult, profilesResult, reportsResult, reviewsResult, coursesResult, actionsResult] = await Promise.all([
+    const [tutorsResult, tutorCoursesResult, catalogueRequestsResult, profilesResult, reportsResult, reviewsResult, coursesResult, actionsResult, studentCountResult, tutorCountResult] = await Promise.all([
       supabase.from("tutor_profiles").select("id,bio,qualifications,status"),
       supabase.from("tutor_courses").select("id,tutor_id,status,courses(id,institution_id,code,title,academic_unit_id,source_url)").eq("status", "pending").order("id"),
       supabase.from("course_catalogue_requests").select("id,institution_id,requested_by,code,title,academic_unit_id,source_url,status,admin_note,course_id,created_at").eq("status", "pending").order("created_at"),
-      supabase.from("profiles").select("id,full_name,role"),
+      supabase.from("profiles").select("id,full_name,role,account_status"),
       supabase.from("reports").select("id,tutor_id,reporter_id,category,description,status,resolution,created_at").order("created_at", { ascending: false }),
       supabase.from("reviews").select("id,tutor_id,student_id,rating,comment,status,created_at").order("created_at", { ascending: false }),
       supabase.from("courses").select("id,institution_id,code,title,academic_unit_id,source_url").order("title"),
       supabase.from("admin_actions").select("id,admin_id,target_id,action,reason,created_at").order("created_at", { ascending: false }).limit(100),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "student"),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "tutor"),
     ]);
-    const failure = tutorsResult.error || tutorCoursesResult.error || catalogueRequestsResult.error || profilesResult.error || reportsResult.error || reviewsResult.error || coursesResult.error || actionsResult.error;
+    const failure = tutorsResult.error || tutorCoursesResult.error || catalogueRequestsResult.error || profilesResult.error || reportsResult.error || reviewsResult.error || coursesResult.error || actionsResult.error || studentCountResult.error || tutorCountResult.error;
     if (failure) setNotice(failure.message);
     setAdminTutors(tutorsResult.data ?? []);
     setAdminTutorCourses((tutorCoursesResult.data ?? []).map((row) => ({
@@ -2239,6 +2289,8 @@ export default function App() {
     })));
     setAdminCourseCatalogueRequests(catalogueRequestsResult.data ?? []);
     setAdminProfiles((profilesResult.data ?? []).map((item) => ({ ...item, role: roleFrom(item.role) })));
+    setAdminStudentCount(studentCountResult.error ? null : studentCountResult.count ?? 0);
+    setAdminTutorCount(tutorCountResult.error ? null : tutorCountResult.count ?? 0);
     setAdminReports(reportsResult.data ?? []);
     setAdminReviews(reviewsResult.data ?? []);
     setAdminCourses(coursesResult.data ?? []);
@@ -2255,6 +2307,19 @@ export default function App() {
       p_reason: String(values.get("reason")).trim(),
     });
     setNotice(error?.message ?? "Tutor status updated and recorded in the audit log.");
+    if (!error) await loadAdminDashboard();
+  }
+
+  async function moderateAccount(event: FormEvent<HTMLFormElement>, id: string) {
+    event.preventDefault();
+    if (!supabase) return;
+    const values = new FormData(event.currentTarget);
+    const { error } = await supabase.rpc("admin_set_account_status", {
+      p_user: id,
+      p_status: String(values.get("status")),
+      p_reason: String(values.get("reason")).trim(),
+    });
+    setNotice(error?.message ?? "Account access updated and recorded in the audit log.");
     if (!error) await loadAdminDashboard();
   }
 
@@ -2831,15 +2896,22 @@ export default function App() {
       <section className="panel"><h2>Student feedback</h2>{tutorReviews.length ? tutorReviews.map((item) => <article className="list-item" key={item.id}><div className="row-between"><b>{item.rating} / 5 stars</b><span className={`status ${item.status}`}>{item.status}</span></div><p>{item.comment || "No written comment."}</p><small>{dateLabel(item.created_at)}</small></article>) : <p className="muted">No reviews yet.</p>}</section>
     </main> : profile?.role === "admin" && section === "admin" ? <main id="main-content" tabIndex={-1} className="page">
       <section className="page-heading"><p className="eyebrow">ADMINISTRATION</p><h1>Trust & quality workspace</h1><p className="muted">Review tutor applications, course associations, reports and feedback. Decisions require a reason and are audited.</p></section>
-      <div className="stats-grid"><div className="stat-card"><span>Pending tutors</span><b>{pendingTutors}</b></div><div className="stat-card"><span>Course requests</span><b>{adminTutorCourses.length + adminCourseCatalogueRequests.length}</b></div><div className="stat-card"><span>Open reports</span><b>{unresolvedReports}</b></div><div className="stat-card"><span>Total reviews</span><b>{adminReviews.length}</b></div><div className="stat-card"><span>Catalog courses</span><b>{adminCourses.length}</b></div></div>
+      <div className="stats-grid"><div className="stat-card"><span>Total students</span><b>{adminStudentCount ?? "—"}</b></div><div className="stat-card"><span>Total tutors</span><b>{adminTutorCount ?? "—"}</b></div><div className="stat-card"><span>Pending tutors</span><b>{pendingTutors}</b></div><div className="stat-card"><span>Course requests</span><b>{adminTutorCourses.length + adminCourseCatalogueRequests.length}</b></div><div className="stat-card"><span>Open reports</span><b>{unresolvedReports}</b></div><div className="stat-card"><span>Total reviews</span><b>{adminReviews.length}</b></div><div className="stat-card"><span>Catalog courses</span><b>{adminCourses.length}</b></div></div>
       <div className="admin-tabs" role="group" aria-label="Moderation sections">
-        {["applications", "course requests", "reports", "reviews", "courses", "audit"].map((tab) => <button key={tab} type="button" aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
+        {["applications", "accounts", "course requests", "reports", "reviews", "courses", "audit"].map((tab) => <button key={tab} type="button" aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
       </div>
       {adminTab === "applications" && <section className="panel"><h2>Tutor applications & status</h2>{adminTutors.length ? adminTutors.map((item) => <article className="moderation-card" key={item.id}>
         <div className="row-between"><div><h3>{profileNames[item.id] || "Tutor applicant"}</h3><span className={`status ${item.status}`}>{item.status}</span></div><small>{item.id}</small></div>
         <p>{item.bio || "Biography not provided."}</p><p className="muted">{item.qualifications || "Qualifications not provided."}</p>
         <form className="moderation-form" onSubmit={(event) => { if (!window.confirm("Save this tutor status change? It can affect the tutor's visibility.")) event.preventDefault(); else void moderateTutor(event, item.id); }}><label>Decision<select name="status" defaultValue={item.status}><option value="approved">Approve</option><option value="rejected">Reject</option><option value="suspended">Suspend</option><option value="removed">Remove</option></select></label><label>Reason<textarea name="reason" required minLength={4} maxLength={1000} /></label><button className="button button-primary">Save decision</button></form>
       </article>) : <p className="muted">No tutor profiles found.</p>}</section>}
+      {adminTab === "accounts" && <section className="panel"><h2>Student and tutor account access</h2><p className="muted">Suspending or removing an account signs the user out and blocks access. Restore an account by setting its status to active. Account changes are reversible and audited; user data is not deleted.</p>{adminProfiles.length ? adminProfiles.map((item) => <article className="moderation-card" key={item.id}>
+        <div className="row-between"><div><h3>{item.full_name || "TutorConnect member"} · {item.role}</h3><span className={`status ${item.account_status}`}>{item.account_status}</span></div><small>{item.id}</small></div>
+        {item.role === "admin" ? <p className="muted">Administrator accounts are protected from account moderation.</p> : <form className="moderation-form" onSubmit={(event) => { if (!window.confirm("Change this account's access? Suspended or removed users will be signed out and unable to use TutorConnect.")) event.preventDefault(); else void moderateAccount(event, item.id); }}>
+          <label>Account status<select name="status" defaultValue={item.account_status}><option value="active">Active / restore access</option><option value="suspended">Suspend</option><option value="removed">Remove (reversible)</option></select></label>
+          <label>Reason<textarea name="reason" required minLength={4} maxLength={1000} /></label><button className="button button-primary">Save account status</button>
+        </form>}
+      </article>) : <p className="muted">No user accounts found.</p>}</section>}
       {adminTab === "course requests" && <section className="panel"><h2>Tutor course requests</h2>{adminTutorCourses.length ? adminTutorCourses.map((item) => <article className="moderation-card" key={item.id}>
         <div className="row-between"><h3>{profileNames[item.tutor_id] || "Tutor"} · {item.courses ? `${item.courses.code} · ${item.courses.title}` : "Course unavailable"}</h3><span className="status pending">pending</span></div>
         <p className="muted">{item.courses ? unitPath(item.courses.academic_unit_id, units) : ""}</p>

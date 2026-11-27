@@ -4,7 +4,9 @@ import { isStudentVerificationActive, isTutorVerificationActive } from "./accoun
 import "./App.css";
 
 type Role = "student" | "tutor" | "admin";
-type Section = "discover" | "student" | "tutor" | "admin" | "profile" | "resources";
+type Section = "discover" | "student" | "tutor" | "admin" | "profile";
+type Theme = "light" | "dark";
+type ThemePreference = { theme: Theme; storageError: string | null };
 type Institution = { id: number; name: string };
 type AcademicUnit = { id: number; name: string; unit_type: string; parent_id: number | null };
 type Profile = {
@@ -44,9 +46,6 @@ type SearchTutor = {
 type GroupedSearchTutor = Omit<SearchTutor, "course_code"> & { course_codes: string[] };
 type TutorResource = { id: number; tutor_id: string; course_id: number | null; course_code?: string | null; resource_type: "teaching_video" | "course_resource" | "past_questions"; title: string; url: string | null; storage_path: string | null; resource_payment_id: string | null; signed_url?: string | null; description: string | null; created_at: string };
 type TutorResourceWithCourse = TutorResource & { courses: { code: string } | { code: string }[] | null };
-type CourseLearningResource = { id: number; course_id: number; resource_type: "video" | "notes" | "open_textbook" | "practice" | "past_questions"; title: string; url: string; source_name: string; description: string | null; license_name: string | null; license_url: string | null };
-type SubjectLearningResource = { title: string; kind: string; url: string; source: string; description: string; license?: string; license_url?: string };
-type SubjectLearningResourceGroup = { subject: string; resources: SubjectLearningResource[] };
 type ContactDetails = {
   phone: string | null;
   email: string | null;
@@ -82,15 +81,6 @@ type AdminTutorCourse = { id: number; tutor_id: string; status: string; courses:
 type AdminProfile = { id: string; full_name: string | null; role: Role; account_status: string };
 type PresenceStatus = "active" | "inactive" | "unknown";
 type AdminAction = { id: number; admin_id: string; target_id: string; action: string; reason: string; created_at: string };
-type DemoPaymentReceipt = {
-  reference: string;
-  purpose: "contact" | "premium" | "resource";
-  amount: number;
-  description: string;
-  payer_role: "Student" | "Tutor";
-  created_at: string;
-};
-
 function ContactLinks({ contact }: { contact: ContactDetails }) {
   const phoneHref = contact.phone?.replace(/[^\d+]/g, "");
   return <div className="contact-details">
@@ -108,55 +98,20 @@ function ContactLinks({ contact }: { contact: ContactDetails }) {
 function optionalFormValue(values: FormData, name: string) {
   return String(values.get(name) || "").trim() || null;
 }
-function readDemoTutorPremiumUntil() {
+
+function readThemePreference(): ThemePreference {
+  const systemTheme: Theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   try {
-    const premiumUntil = localStorage.getItem("tutorconnect-demo-tutor-premium-until");
-    return premiumUntil && Date.parse(premiumUntil) > Date.now() ? premiumUntil : null;
-  } catch {
-    return null;
-  }
-}
-function readDemoResources(): TutorResource[] {
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem("tutorconnect-demo-resources") || "[]");
-    if (!Array.isArray(stored)) return [];
-    return stored.filter((item: unknown): item is TutorResource =>
-      item !== null
-      && typeof item === "object"
-      && "id" in item && typeof item.id === "number"
-      && "tutor_id" in item && typeof item.tutor_id === "string"
-      && "course_id" in item && typeof item.course_id === "number"
-      && "course_code" in item && typeof item.course_code === "string"
-      && "resource_type" in item && ["teaching_video", "course_resource", "past_questions"].includes(String(item.resource_type))
-      && "title" in item && typeof item.title === "string"
-      && "url" in item && typeof item.url === "string"
-      && "created_at" in item && typeof item.created_at === "string",
-    );
-  } catch {
-    return [];
-  }
-}
-function readDemoCourseCatalogueRequests(): CourseCatalogueRequest[] {
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem("tutorconnect-demo-course-requests") || "[]");
-    if (!Array.isArray(stored)) return [];
-    return stored.filter((item: unknown): item is CourseCatalogueRequest =>
-      item !== null
-      && typeof item === "object"
-      && "id" in item && typeof item.id === "number"
-      && "institution_id" in item && typeof item.institution_id === "number"
-      && "requested_by" in item && typeof item.requested_by === "string"
-      && "code" in item && typeof item.code === "string"
-      && "title" in item && typeof item.title === "string"
-      && "academic_unit_id" in item && (item.academic_unit_id === null || typeof item.academic_unit_id === "number")
-      && "source_url" in item && (item.source_url === null || typeof item.source_url === "string")
-      && "status" in item && ["pending", "approved", "rejected"].includes(String(item.status))
-      && "admin_note" in item && (item.admin_note === null || typeof item.admin_note === "string")
-      && "course_id" in item && (item.course_id === null || typeof item.course_id === "number")
-      && "created_at" in item && typeof item.created_at === "string",
-    );
-  } catch {
-    return [];
+    const storedTheme = localStorage.getItem("tutorconnect-theme");
+    return {
+      theme: storedTheme === "light" || storedTheme === "dark" ? storedTheme : systemTheme,
+      storageError: null,
+    };
+  } catch (error) {
+    return {
+      theme: systemTheme,
+      storageError: error instanceof Error ? error.message : "Browser storage is unavailable.",
+    };
   }
 }
 async function paymentErrorMessage(error: unknown) {
@@ -234,380 +189,7 @@ const resourceFileExtensions: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
 };
-const courseResourceLabel = (type: CourseLearningResource["resource_type"]) => ({
-  video: "Video lesson",
-  notes: "Notes",
-  open_textbook: "Open textbook",
-  practice: "Practice materials",
-  past_questions: "Past questions",
-}[type]);
-
-const presentationInstitution: Institution = { id: -1, name: "University of Cape Coast (demo)" };
-const presentationUnits: AcademicUnit[] = [
-  { id: -1, name: "College of Science and Technology", unit_type: "college", parent_id: null },
-  { id: -2, name: "School of Physical Sciences", unit_type: "school", parent_id: -1 },
-  { id: -3, name: "Computer Science and Information Technology", unit_type: "department", parent_id: -2 },
-  { id: -4, name: "School of Business", unit_type: "school", parent_id: -1 },
-  { id: -5, name: "Management Studies", unit_type: "department", parent_id: -4 },
-  { id: -6, name: "Mathematics", unit_type: "department", parent_id: -2 },
-];
-const presentationTutors: SearchTutor[] = [
-  {
-    id: "demo-tutor-computing",
-    name: "Tutor Ama",
-    bio: "Fictional profile for demonstrating course-matched tutor discovery.",
-    rate: 45,
-    delivery: "Online",
-    course_code: "CS101",
-    avg_rating: 4.8,
-    review_count: 12,
-    featured: false,
-    department_id: -3,
-    department: "Computer Science and Information Technology",
-    school: "School of Physical Sciences",
-    college: "College of Science and Technology",
-    avatar_path: null,
-    avatar_url: null,
-  },
-  {
-    id: "demo-tutor-computing",
-    name: "Tutor Ama",
-    bio: "Fictional profile for demonstrating course-matched tutor discovery.",
-    rate: 45,
-    delivery: "Online",
-    course_code: "CS102",
-    avg_rating: 4.8,
-    review_count: 12,
-    featured: false,
-    department_id: -3,
-    department: "Computer Science and Information Technology",
-    school: "School of Physical Sciences",
-    college: "College of Science and Technology",
-    avatar_path: null,
-    avatar_url: null,
-  },
-  {
-    id: "demo-tutor-mathematics",
-    name: "Tutor Kofi",
-    bio: "Fictional profile for demonstrating online mathematics support.",
-    rate: 55,
-    delivery: "Both",
-    course_code: "MATH120",
-    avg_rating: 4.6,
-    review_count: 8,
-    featured: false,
-    department_id: -6,
-    department: "Mathematics",
-    school: "School of Physical Sciences",
-    college: "College of Science and Technology",
-    avatar_path: null,
-    avatar_url: null,
-  },
-  {
-    id: "demo-tutor-business",
-    name: "Tutor Esi",
-    bio: "Fictional profile for demonstrating business-course support.",
-    rate: 40,
-    delivery: "Online",
-    course_code: "BUS204",
-    avg_rating: 4.9,
-    review_count: 15,
-    featured: false,
-    department_id: -5,
-    department: "Management Studies",
-    school: "School of Business",
-    college: "College of Science and Technology",
-    avatar_path: null,
-    avatar_url: null,
-  },
-];
-const presentationTutorResources: TutorResource[] = [
-  {
-    id: -1,
-    tutor_id: "demo-tutor-computing",
-    course_id: -2,
-    course_code: "CS101",
-    resource_type: "course_resource",
-    title: "CS50 Week 0: Scratch and computational thinking",
-    url: "https://youtu.be/2WtPyqwTLKM",
-    storage_path: null,
-    resource_payment_id: null,
-    description: "External Harvard CS50 lecture, not created by this fictional tutor.",
-    created_at: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: -2,
-    tutor_id: "demo-tutor-computing",
-    course_id: -3,
-    course_code: "CS102",
-    resource_type: "course_resource",
-    title: "CS50P: Programming with Python video course",
-    url: "https://www.youtube.com/playlist?list=PLhQjrBD2T3817j24-GogXmWqO5Q5vYy0V",
-    storage_path: null,
-    resource_payment_id: null,
-    description: "External Harvard CS50 playlist, not created by this fictional tutor.",
-    created_at: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: -3,
-    tutor_id: "demo-tutor-mathematics",
-    course_id: -1,
-    course_code: "MATH120",
-    resource_type: "course_resource",
-    title: "MIT 18.06 Linear Algebra lecture playlist",
-    url: "https://www.youtube.com/playlist?list=PLE7DDD91010BC51F8",
-    storage_path: null,
-    resource_payment_id: null,
-    description: "External MIT OpenCourseWare lectures, not created by this fictional tutor.",
-    created_at: "2026-01-01T00:00:00Z",
-  },
-  {
-    id: -4,
-    tutor_id: "demo-tutor-business",
-    course_id: -4,
-    course_code: "BUS204",
-    resource_type: "course_resource",
-    title: "OpenStax: Principles of Management",
-    url: "https://openstax.org/books/principles-management/pages/1-introduction",
-    storage_path: null,
-    resource_payment_id: null,
-    description: "External free-to-read OpenStax textbook, not created by this fictional tutor.",
-    created_at: "2026-01-01T00:00:00Z",
-  },
-];
-const presentationResources: Array<Course & { resources: CourseLearningResource[] }> = [
-  {
-    id: -1,
-    institution_id: presentationInstitution.id,
-    code: "MATH120",
-    title: "Linear Algebra I (demo course)",
-    academic_unit_id: -6,
-    source_url: null,
-    resources: [{
-      id: -1,
-      course_id: -1,
-      resource_type: "video",
-      title: "MIT OpenCourseWare: Linear Algebra",
-      url: "https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/",
-      source_name: "MIT OpenCourseWare (external example)",
-      description: "Free course materials include lecture videos, problem sets and exams; not a TutorConnect tutor lesson.",
-      license_name: "CC BY-NC-SA 4.0 (check individual asset credits)",
-      license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-    }, {
-      id: -4,
-      course_id: -1,
-      resource_type: "video",
-      title: "MIT 18.06 Linear Algebra lectures on YouTube",
-      url: "https://www.youtube.com/playlist?list=PLE7DDD91010BC51F8",
-      source_name: "MIT OpenCourseWare",
-      description: "MIT professor Gilbert Strang's Spring 2005 lecture playlist.",
-      license_name: "CC BY-NC-SA 4.0 (check individual asset credits)",
-      license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-    }],
-  },
-  {
-    id: -2,
-    institution_id: presentationInstitution.id,
-    code: "CS101",
-    title: "Introduction to Computer Science (demo course)",
-    academic_unit_id: -3,
-    source_url: null,
-    resources: [{
-      id: -2,
-      course_id: -2,
-      resource_type: "open_textbook",
-      title: "Harvard CS50: Introduction to Computer Science",
-      url: "https://cs50.harvard.edu/x/",
-      source_name: "Harvard CS50 (external example)",
-      description: "Public external study material used to illustrate the library; not a TutorConnect tutor lesson.",
-      license_name: null,
-      license_url: null,
-    }, {
-      id: -5,
-      course_id: -2,
-      resource_type: "video",
-      title: "CS50 Week 0: Scratch and computational thinking",
-      url: "https://youtu.be/2WtPyqwTLKM",
-      source_name: "Harvard CS50",
-      description: "Official introductory lecture video; free course materials are available on the CS50 site.",
-      license_name: null,
-      license_url: null,
-    }],
-  },
-  {
-    id: -3,
-    institution_id: presentationInstitution.id,
-    code: "CS102",
-    title: "Programming with Python (demo course)",
-    academic_unit_id: -3,
-    source_url: null,
-    resources: [{
-      id: -6,
-      course_id: -3,
-      resource_type: "open_textbook",
-      title: "Harvard CS50P: Introduction to Programming with Python",
-      url: "https://cs50.harvard.edu/python/",
-      source_name: "Harvard CS50 (external example)",
-      description: "Free self-paced course materials; not a TutorConnect tutor lesson.",
-      license_name: null,
-      license_url: null,
-    }, {
-      id: -7,
-      course_id: -3,
-      resource_type: "video",
-      title: "CS50P Python programming video playlist",
-      url: "https://www.youtube.com/playlist?list=PLhQjrBD2T3817j24-GogXmWqO5Q5vYy0V",
-      source_name: "Harvard CS50",
-      description: "Official CS50P lecture playlist on YouTube.",
-      license_name: null,
-      license_url: null,
-    }],
-  },
-  {
-    id: -4,
-    institution_id: presentationInstitution.id,
-    code: "BUS204",
-    title: "Business and Management (demo course)",
-    academic_unit_id: -5,
-    source_url: null,
-    resources: [{
-      id: -8,
-      course_id: -4,
-      resource_type: "open_textbook",
-      title: "OpenStax: Principles of Management",
-      url: "https://openstax.org/books/principles-management/pages/1-introduction",
-      source_name: "OpenStax",
-      description: "Free-to-read management textbook. The book is licensed for non-commercial sharing and adaptation.",
-      license_name: "CC BY-NC-SA 4.0",
-      license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-    }, {
-      id: -9,
-      course_id: -4,
-      resource_type: "notes",
-      title: "MIT OpenCourseWare: Financial and Managerial Accounting",
-      url: "https://ocw.mit.edu/courses/15-501-introduction-to-financial-and-managerial-accounting-spring-2004/",
-      source_name: "MIT OpenCourseWare",
-      description: "Course notes, exams and problem sets for undergraduate accounting.",
-      license_name: "CC BY-NC-SA 4.0 (check individual asset credits)",
-      license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-    }, {
-      id: -10,
-      course_id: -4,
-      resource_type: "video",
-      title: "MIT OpenCourseWare business lecture videos on YouTube",
-      url: "https://www.youtube.com/mitocw",
-      source_name: "MIT OpenCourseWare",
-      description: "Official video channel; use the course guide above to find the matching topic.",
-      license_name: null,
-      license_url: null,
-    }],
-  },
-];
-const curatedSubjectResources: SubjectLearningResourceGroup[] = [
-  {
-    subject: "Mathematics",
-    resources: [
-      {
-        title: "MIT OpenCourseWare: Linear Algebra (18.06)",
-        kind: "Free course materials",
-        url: "https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/",
-        source: "MIT OpenCourseWare",
-        description: "Lecture videos, problem sets, exams and solutions covering matrix theory and linear algebra.",
-        license: "CC BY-NC-SA 4.0 (check individual asset credits)",
-        license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-      },
-      {
-        title: "MIT 18.06 Linear Algebra lectures (YouTube)",
-        kind: "YouTube playlist",
-        url: "https://www.youtube.com/playlist?list=PLE7DDD91010BC51F8",
-        source: "MIT OpenCourseWare",
-        description: "Gilbert Strang's Spring 2005 lecture playlist.",
-        license: "CC BY-NC-SA 4.0 (check individual asset credits)",
-        license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-      },
-      {
-        title: "3Blue1Brown: Essence of Calculus",
-        kind: "YouTube playlist",
-        url: "https://www.youtube.com/playlist?list=PLZHQObOWTQDMsr9K-rj53DwVRMYO3t5Yr",
-        source: "3Blue1Brown",
-        description: "Visual intuition for core calculus concepts.",
-      },
-    ],
-  },
-  {
-    subject: "Computer Science",
-    resources: [
-      {
-        title: "Harvard CS50x: Introduction to Computer Science",
-        kind: "Free self-paced course",
-        url: "https://cs50.harvard.edu/x/",
-        source: "Harvard CS50",
-        description: "Free course covering algorithms, programming, data structures, SQL and web development.",
-      },
-      {
-        title: "CS50 Week 0: Scratch and computational thinking",
-        kind: "YouTube lecture",
-        url: "https://youtu.be/2WtPyqwTLKM",
-        source: "Harvard CS50",
-        description: "Official introductory lecture; course notes and exercises are linked from CS50x.",
-      },
-      {
-        title: "CS50P: Introduction to Programming with Python",
-        kind: "YouTube playlist",
-        url: "https://www.youtube.com/playlist?list=PLhQjrBD2T3817j24-GogXmWqO5Q5vYy0V",
-        source: "Harvard CS50",
-        description: "Official lecture playlist for the free Python programming course.",
-      },
-    ],
-  },
-  {
-    subject: "Business and Management",
-    resources: [
-      {
-        title: "OpenStax: Principles of Management",
-        kind: "Free-to-read textbook",
-        url: "https://openstax.org/books/principles-management/pages/1-introduction",
-        source: "OpenStax, Rice University",
-        description: "Introductory management text. Its CC BY-NC-SA license limits reuse to non-commercial sharing and adaptation.",
-        license: "CC BY-NC-SA 4.0",
-        license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-      },
-      {
-        title: "MIT OpenCourseWare: Financial and Managerial Accounting",
-        kind: "Free course materials",
-        url: "https://ocw.mit.edu/courses/15-501-introduction-to-financial-and-managerial-accounting-spring-2004/",
-        source: "MIT OpenCourseWare",
-        description: "Undergraduate accounting course with lecture notes, problem sets and exams.",
-        license: "CC BY-NC-SA 4.0 (check individual asset credits)",
-        license_url: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
-      },
-      {
-        title: "MIT OpenCourseWare business lecture videos",
-        kind: "YouTube channel",
-        url: "https://www.youtube.com/mitocw",
-        source: "MIT OpenCourseWare",
-        description: "Official video channel; use the accounting course guide above to find the matching subject material.",
-      },
-    ],
-  },
-];
-const presentationDemoCourses: Course[] = [
-  { id: -2, institution_id: -1, code: "CS101", title: "Introduction to Computing", academic_unit_id: -3, source_url: null },
-  { id: -3, institution_id: -1, code: "CS102", title: "Programming Fundamentals", academic_unit_id: -3, source_url: null },
-  { id: -1, institution_id: -1, code: "MATH120", title: "Linear Algebra", academic_unit_id: -6, source_url: null },
-  { id: -4, institution_id: -1, code: "BUS204", title: "Business Management", academic_unit_id: -5, source_url: null },
-  { id: -5, institution_id: -1, code: "STAT101", title: "Introduction to Statistics", academic_unit_id: -6, source_url: null },
-  { id: -6, institution_id: -1, code: "ECON101", title: "Principles of Economics", academic_unit_id: -5, source_url: null },
-  { id: -7, institution_id: -1, code: "ACCT101", title: "Introduction to Accounting", academic_unit_id: -5, source_url: null },
-  { id: -8, institution_id: -1, code: "PHYS101", title: "General Physics", academic_unit_id: -2, source_url: null },
-  { id: -9, institution_id: -1, code: "CHEM101", title: "General Chemistry", academic_unit_id: -2, source_url: null },
-  { id: -10, institution_id: -1, code: "BIOL101", title: "General Biology", academic_unit_id: -2, source_url: null },
-  { id: -11, institution_id: -1, code: "WRIT101", title: "Academic Writing", academic_unit_id: null, source_url: null },
-];
-
 export default function App() {
-  const presentationDemo = new URLSearchParams(window.location.search).get("demo") === "1";
-  const demoRole = new URLSearchParams(window.location.search).get("role");
   const [user, setUser] = useState<{ id: string; email: string | null } | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -618,17 +200,12 @@ export default function App() {
   const avatarPreviewUrl = useRef<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [recentlyUnlockedContact, setRecentlyUnlockedContact] = useState<Contact | null>(null);
-  const [institutions, setInstitutions] = useState<Institution[]>(presentationDemo ? [presentationInstitution] : []);
-  const [institutionId, setInstitutionId] = useState<number | "">(presentationDemo ? presentationInstitution.id : "");
-  const [units, setUnits] = useState<AcademicUnit[]>(presentationDemo ? presentationUnits : []);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [institutionId, setInstitutionId] = useState<number | "">("");
+  const [units, setUnits] = useState<AcademicUnit[]>([]);
   const [unitId, setUnitId] = useState<number | "">("");
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchTutor[]>(() => presentationDemo
-    ? presentationTutors.map((tutor) => ({
-      ...tutor,
-      featured: tutor.id === "demo-tutor-computing" && isTutorVerificationActive("approved", readDemoTutorPremiumUntil()),
-    }))
-    : []);
+  const [results, setResults] = useState<SearchTutor[]>([]);
   const [contacts, setContacts] = useState<Record<string, Contact>>({});
   const [studentReviews, setStudentReviews] = useState<Review[]>([]);
   const [studentReports, setStudentReports] = useState<Report[]>([]);
@@ -664,20 +241,15 @@ export default function App() {
   const [adminReviews, setAdminReviews] = useState<Review[]>([]);
   const [adminCourses, setAdminCourses] = useState<Course[]>([]);
   const [adminActions, setAdminActions] = useState<AdminAction[]>([]);
-  const [courseResourceCourses, setCourseResourceCourses] = useState<Array<Course & { resources: CourseLearningResource[] }>>(presentationDemo ? presentationResources : []);
-  const [courseResourcesLoading, setCourseResourcesLoading] = useState(false);
-  const [courseResourcesError, setCourseResourcesError] = useState<string | null>(null);
-  const [courseResourceQuery, setCourseResourceQuery] = useState("");
-  const [courseResourceReload, setCourseResourceReload] = useState(0);
-  const [hasSearched, setHasSearched] = useState(presentationDemo);
+  const [hasSearched, setHasSearched] = useState(false);
   const [section, setSection] = useState<Section>("discover");
   const [adminTab, setAdminTab] = useState("applications");
   const [authMode, setAuthMode] = useState<"login" | "signup" | "forgot" | "update">("login");
-  const [demoAuthRequested, setDemoAuthRequested] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
+  const theme = themePreference.theme;
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [demoReceipt, setDemoReceipt] = useState<DemoPaymentReceipt | null>(null);
   const unitOptions = useMemo(() => units.filter((unit) => unit.unit_type === "department" || unit.unit_type === "school" || unit.unit_type === "college"), [units]);
   const profileNames = useMemo(() => Object.fromEntries(adminProfiles.map((item) => [item.id, item.full_name || "TutorConnect member"])), [adminProfiles]);
   const tutorVerified = isTutorVerificationActive(
@@ -696,6 +268,41 @@ export default function App() {
     const interval = window.setInterval(() => setPresenceNow(Date.now()), 15_000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
+
+  useEffect(() => {
+    if (themePreference.storageError) {
+      setNotice(`Theme preference could not be saved or loaded: ${themePreference.storageError}`);
+    }
+  }, [themePreference.storageError]);
+
+  useEffect(() => {
+    try {
+      for (const key of [
+        "tutorconnect-demo-tutor-premium-until",
+        "tutorconnect-demo-resources",
+        "tutorconnect-demo-course-requests",
+        "tutorconnect-demo-receipts",
+        "tutorconnect-demo-resource-credits",
+      ]) localStorage.removeItem(key);
+    } catch (error) {
+      setNotice(`Old demo data could not be cleared from this browser: ${error instanceof Error ? error.message : "browser storage is unavailable."}`);
+    }
+  }, []);
+
+  function toggleTheme() {
+    const nextTheme: Theme = theme === "dark" ? "light" : "dark";
+    let storageError: string | null = null;
+    try {
+      localStorage.setItem("tutorconnect-theme", nextTheme);
+    } catch (error) {
+      storageError = error instanceof Error ? error.message : "Browser storage is unavailable.";
+    }
+    setThemePreference({ theme: nextTheme, storageError });
+  }
 
   function clearAccountData() {
     setContacts({});
@@ -747,7 +354,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!supabase || presentationDemo || !user || !profile || profile.role === "admin") return;
+    if (!supabase || !user || !profile || profile.role === "admin") return;
     const client = supabase;
     let active = true;
     let requestInFlight = false;
@@ -768,12 +375,11 @@ export default function App() {
       active = false;
       window.clearInterval(interval);
     };
-  }, [user?.id, profile?.id, profile?.role, presentationDemo]);
+  }, [user?.id, profile?.id, profile?.role]);
 
   useEffect(() => {
     const userId = user?.id;
-    const isDemoUser = presentationDemo && (demoRole === "student" || demoRole === "tutor");
-    if (!userId && !isDemoUser) {
+    if (!userId) {
       setMyPresenceLastSeenAt(null);
       setMyPresenceError(null);
       return;
@@ -789,16 +395,6 @@ export default function App() {
       if (document.visibilityState === "hidden" || requestInFlight || (!force && currentTime - lastHeartbeatAt < 60_000)) return;
       lastHeartbeatAt = currentTime;
       requestInFlight = true;
-      if (presentationDemo) {
-        if (active) {
-          setMyPresenceLastSeenAt(currentTime);
-          setMyPresenceError(null);
-          setPresenceNow(currentTime);
-        }
-        requestInFlight = false;
-        return;
-      }
-
       const client = supabase;
       if (!client) {
         if (active) setMyPresenceError("Presence service is not configured.");
@@ -847,76 +443,7 @@ export default function App() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("focus", onVisibilityChange);
     };
-  }, [user?.id, presentationDemo, demoRole]);
-
-  useEffect(() => {
-    if (!presentationDemo || (demoRole !== "student" && demoRole !== "tutor")) return;
-    const role: Role = demoRole;
-    const id = role === "tutor" ? "demo-tutor-computing" : "demo-student";
-    const premiumUntil = role === "tutor" ? readDemoTutorPremiumUntil() : null;
-    setUser({ id, email: role === "tutor" ? "tutor.demo@example.com" : "student.demo@example.com" });
-    setProfile({
-      id,
-      full_name: role === "tutor" ? "Tutor Ama" : "Demo Student",
-      role,
-      bio: role === "tutor" ? "Fictional tutor approved for the presentation demo." : "Fictional student account for the presentation demo.",
-      avatar_path: null,
-      avatar_url: null,
-      is_verified: role === "tutor" && isTutorVerificationActive("approved", premiumUntil),
-      phone: role === "student" ? "+233 20 000 0001" : null,
-      contact_email: role === "student" ? "student.demo@example.com" : null,
-      whatsapp_url: null,
-      instagram_url: null,
-      facebook_url: null,
-      linkedin_url: null,
-      x_url: null,
-      website_url: null,
-    });
-    if (role === "tutor") {
-      setTutorProfile({
-        id,
-        bio: "Fictional tutor profile for demonstrating premium listings and resource publishing.",
-        qualifications: "Demo qualifications",
-        rate: 45,
-        delivery: "Online",
-        availability: "Weekdays",
-        status: "approved",
-        premium_until: premiumUntil,
-        views: 0,
-      });
-      setTutorContact({
-        tutor_id: id,
-        phone: "+233 20 000 0002",
-        email: "tutor.demo@example.com",
-        whatsapp_url: "https://wa.me/233200000002",
-        instagram_url: null,
-        facebook_url: null,
-        linkedin_url: null,
-        x_url: null,
-        website_url: null,
-      });
-      setTutorCourses([
-        { id: -1, status: "approved", courses: { id: -2, institution_id: -1, code: "CS101", title: "Introduction to Computing", academic_unit_id: -3, source_url: null } },
-        { id: -2, status: "approved", courses: { id: -3, institution_id: -1, code: "CS102", title: "Programming Fundamentals", academic_unit_id: -3, source_url: null } },
-      ]);
-      setCourseCatalogueRequests(readDemoCourseCatalogueRequests());
-      setTutorResources([
-        ...presentationTutorResources.filter((resource) => resource.tutor_id === id),
-        ...readDemoResources().filter((resource) => resource.tutor_id === id),
-      ]);
-      try {
-        const storedCredits = JSON.parse(localStorage.getItem("tutorconnect-demo-resource-credits") || "[]");
-        setResourceCredits(Array.isArray(storedCredits) ? storedCredits : []);
-      } catch {
-        setResourceCredits([]);
-      }
-      setTutorStats({ profile_views: 24, contact_unlocks: 3, review_count: 2, average_rating: 4.8 });
-    } else {
-      setContacts({});
-      setRecentlyUnlockedContact(null);
-      setTutorResources(readDemoResources());
-    }
-  }, [presentationDemo, demoRole]);
+  }, [user?.id]);
 
   async function loadProfile(id: string) {
     if (!supabase) return;
@@ -1006,7 +533,6 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (presentationDemo && (demoRole === "student" || demoRole === "tutor")) return;
     if (!supabase) return;
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       const nextUserId = session?.user?.id ?? null;
@@ -1049,7 +575,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!supabase || presentationDemo) return;
+    if (!supabase) return;
     void supabase.from("institutions").select("id,name").eq("active", true).order("name").then(({ data, error }) => {
       if (error) {
         setNotice(error.message);
@@ -1064,10 +590,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (presentationDemo) {
-      setUnits(presentationUnits);
-      return;
-    }
     if (!supabase || institutionId === "") {
       setUnits([]);
       return;
@@ -1081,82 +603,9 @@ export default function App() {
     });
   }, [institutionId]);
 
-  useEffect(() => {
-    if (section !== "resources") return;
-    if (presentationDemo) {
-      setCourseResourceCourses(presentationResources);
-      setCourseResourcesError(null);
-      setCourseResourcesLoading(false);
-      return;
-    }
-    if (!supabase || institutionId === "") {
-      setCourseResourceCourses([]);
-      setCourseResourcesLoading(false);
-      return;
-    }
-
-    let active = true;
-    const client = supabase;
-    setCourseResourcesLoading(true);
-    setCourseResourcesError(null);
-    void (async () => {
-      try {
-        const { data: courses, error: coursesError } = await client.from("courses")
-          .select("id,institution_id,code,title,academic_unit_id,source_url")
-          .eq("institution_id", institutionId)
-          .eq("active", true)
-          .order("title");
-        if (!active) return;
-        if (coursesError) {
-          setCourseResourcesError(coursesError.message);
-          setCourseResourceCourses([]);
-          return;
-        }
-
-        const rows = (courses ?? []) as Course[];
-        if (!rows.length) {
-          setCourseResourceCourses([]);
-          return;
-        }
-
-        const { data: resources, error: resourcesError } = await client.from("course_learning_resources")
-          .select("id,course_id,resource_type,title,url,source_name,description,license_name,license_url")
-          .in("course_id", rows.map((course) => course.id))
-          .eq("active", true)
-          .order("title");
-        if (!active) return;
-        if (resourcesError) {
-          setCourseResourcesError(resourcesError.message);
-          setCourseResourceCourses([]);
-          return;
-        }
-
-        const grouped = (resources ?? []).reduce<Record<number, CourseLearningResource[]>>((items, resource: CourseLearningResource) => {
-          items[resource.course_id] = [...(items[resource.course_id] ?? []), resource];
-          return items;
-        }, {});
-        setCourseResourceCourses(rows
-          .map((course) => ({ ...course, resources: grouped[course.id] ?? [] }))
-          .filter((course) => course.resources.length > 0));
-      } catch (error) {
-        if (!active) return;
-        setCourseResourcesError(error instanceof Error ? error.message : "An unexpected error occurred.");
-        setCourseResourceCourses([]);
-      } finally {
-        if (active) setCourseResourcesLoading(false);
-      }
-    })();
-
-    return () => { active = false; };
-  }, [section, institutionId, courseResourceReload]);
 
   useEffect(() => {
     if (!profile) return;
-    if (presentationDemo) {
-      if (profile.role === "tutor") setSection("tutor");
-      else if (profile.role === "student") setSection("discover");
-      return;
-    }
     if (profile.role === "tutor") {
       setSection("tutor");
       void loadTutorDashboard(profile.id);
@@ -1299,41 +748,9 @@ export default function App() {
     setNotice("");
     setSection("discover");
     setProfile(null);
-    setDemoAuthRequested(false);
   }
 
   async function runSearch() {
-    if (presentationDemo) {
-      const search = query.trim().toLowerCase();
-      const selectedUnit = unitId === "" ? "" : unitPath(unitId, presentationUnits);
-      const demoPremiumActive = isTutorVerificationActive("approved", readDemoTutorPremiumUntil());
-      const matchingTutors = presentationTutors
-        .filter((tutor) =>
-          (!search || `${tutor.course_code} ${tutor.name} ${tutor.department}`.toLowerCase().includes(search))
-          && (!selectedUnit || unitPath(tutor.department_id, presentationUnits).startsWith(selectedUnit)),
-        )
-        .map((tutor) => ({
-          ...tutor,
-          featured: tutor.id === "demo-tutor-computing" && demoPremiumActive,
-        }));
-      setResults(matchingTutors);
-      setContacts({});
-      const demoResources = [
-        ...presentationTutorResources,
-        ...tutorResources.filter((resource) => resource.resource_payment_id?.startsWith("demo-resource-")),
-      ];
-      const matchingResources = demoResources.filter((resource) =>
-        matchingTutors.some((tutor) => tutor.id === resource.tutor_id && tutor.course_code === resource.course_code),
-      );
-      setResourcesByTutor(matchingResources.reduce<Record<string, TutorResource[]>>((grouped, resource) => {
-        grouped[resource.tutor_id] = [...(grouped[resource.tutor_id] ?? []), resource];
-        return grouped;
-      }, {}));
-      setRecentlyUnlockedContact(null);
-      setHasSearched(true);
-      setNotice("Presentation search uses fictional profiles. Contact unlocks and payments are disabled.");
-      return;
-    }
     if (!supabase || institutionId === "") {
       setNotice("Choose an institution after connecting Supabase.");
       return;
@@ -1411,117 +828,7 @@ export default function App() {
     await runSearch();
   }
 
-  function createDemoReceipt(purpose: DemoPaymentReceipt["purpose"], amount: number, description: string) {
-    const reference = `TC-DEMO-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    const receipt: DemoPaymentReceipt = {
-      reference,
-      purpose,
-      amount,
-      description,
-      payer_role: demoRole === "tutor" ? "Tutor" : "Student",
-      created_at: new Date().toISOString(),
-    };
-    setDemoReceipt(receipt);
-    try {
-      const stored = JSON.parse(localStorage.getItem("tutorconnect-demo-receipts") || "[]");
-      localStorage.setItem("tutorconnect-demo-receipts", JSON.stringify([receipt, ...(Array.isArray(stored) ? stored : [])].slice(0, 20)));
-    } catch {
-      localStorage.setItem("tutorconnect-demo-receipts", JSON.stringify([receipt]));
-    }
-    return receipt;
-  }
-
-  function downloadDemoReceipt(receipt: DemoPaymentReceipt) {
-    const escapePdfText = (value: string) => value.normalize("NFKD")
-      .replace(/[^\x20-\x7e]/g, "?")
-      .replace(/[\\()]/g, "\\$&");
-    const wrapLine = (value: string, width = 78) => {
-      const wrapped: string[] = [];
-      let remaining = value;
-      while (remaining.length > width) {
-        const space = remaining.lastIndexOf(" ", width);
-        const splitAt = space > 0 ? space : width;
-        wrapped.push(remaining.slice(0, splitAt));
-        remaining = remaining.slice(splitAt).trimStart();
-      }
-      wrapped.push(remaining);
-      return wrapped;
-    };
-    const lines = [
-      "TUTORCONNECT",
-      "DEMO PAYMENT RECEIPT",
-      "SIMULATED TRANSACTION - NOT A REAL PAYMENT",
-      `Reference: ${receipt.reference}`,
-      `Payer: ${receipt.payer_role} demo account`,
-      `Purpose: ${receipt.description}`,
-      `Amount: GHS ${receipt.amount.toFixed(2)}`,
-      "Payment method: Simulated presentation demo",
-      "Status: Successful (simulated)",
-      `Date (UTC): ${receipt.created_at}`,
-      "Record of the simulated TutorConnect presentation flow.",
-      "No real money was charged; this is not proof of a real payment.",
-    ].flatMap((line) => wrapLine(line));
-    let verticalPosition = 748;
-    const content = [
-      "BT",
-      ...lines.map((line, index) => {
-        const fontSize = index === 0 ? 20 : index === 1 ? 14 : index === 2 ? 10 : 11;
-        const command = `/F1 ${fontSize} Tf\n1 0 0 1 54 ${verticalPosition} Tm\n(${escapePdfText(line)}) Tj`;
-        verticalPosition -= index < 2 ? 30 : 22;
-        return command;
-      }),
-      "ET",
-    ].join("\n");
-    const objects = [
-      "<< /Type /Catalog /Pages 2 0 R >>",
-      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
-    ];
-    let pdf = "%PDF-1.4\n";
-    const objectOffsets = [0];
-    objects.forEach((object, index) => {
-      objectOffsets.push(pdf.length);
-      pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-    });
-    const crossReferenceOffset = pdf.length;
-    pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-    for (const offset of objectOffsets.slice(1)) {
-      pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
-    }
-    pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${crossReferenceOffset}\n%%EOF`;
-    const url = URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${receipt.reference}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-  }
-
   async function unlockContact(tutorId: string) {
-    if (presentationDemo) {
-      const tutor = presentationTutors.find((item) => item.id === tutorId);
-      const contact: Contact = {
-        tutor_id: tutorId,
-        phone: tutorId === "demo-tutor-computing" ? "+233 20 000 0002" : "+233 20 000 0003",
-        email: tutorId === "demo-tutor-computing" ? "tutor.demo@example.com" : "demo.tutor@example.com",
-        whatsapp_url: tutorId === "demo-tutor-computing" ? "https://wa.me/233200000002" : null,
-        instagram_url: null,
-        facebook_url: null,
-        linkedin_url: null,
-        x_url: null,
-        website_url: null,
-      };
-      createDemoReceipt("contact", 10, `Tutor contact unlock — ${tutor?.name ?? "Demo tutor"}`);
-      setContacts((current) => ({ ...current, [tutorId]: contact }));
-      setRecentlyUnlockedContact(contact);
-      setProfile((current) => current ? { ...current, is_verified: current.role === "student" } : current);
-      setNotice("Demo payment successful. The tutor's contact details are now unlocked.");
-      return;
-    }
     if (!supabase || !user) {
       setNotice("Log in as a student before unlocking contact details.");
       return;
@@ -1546,30 +853,6 @@ export default function App() {
   }
 
   async function startPremiumCheckout(plan: "monthly" | "semester") {
-    if (presentationDemo) {
-      const amount = plan === "monthly" ? 50 : 200;
-      const days = plan === "monthly" ? 30 : 120;
-      const expiry = new Date();
-      expiry.setDate(expiry.getDate() + days);
-      const premiumUntil = expiry.toISOString();
-      let savedForDemo = true;
-      try {
-        localStorage.setItem("tutorconnect-demo-tutor-premium-until", premiumUntil);
-      } catch {
-        savedForDemo = false;
-      }
-      setTutorProfile((current) => current ? {
-        ...current,
-        premium_until: premiumUntil,
-      } : current);
-      setProfile((current) => current ? { ...current, is_verified: true } : current);
-      setResults((current) => current.map((tutor) => tutor.id === "demo-tutor-computing" ? { ...tutor, featured: true } : tutor));
-      createDemoReceipt("premium", amount, `${plan === "monthly" ? "Monthly" : "Semester"} tutor listing plan`);
-      setNotice(savedForDemo
-        ? "Demo payment successful. Your tutor listing mark is now active."
-        : "Demo payment successful. Your tutor listing mark is active for this session, but could not be saved for later demo visits.");
-      return;
-    }
     if (!supabase || !user || profile?.role !== "tutor") {
       setNotice("Sign in to a tutor account before subscribing.");
       return;
@@ -1601,17 +884,6 @@ export default function App() {
   }
 
   async function startResourceCheckout() {
-    if (presentationDemo) {
-      const credit = `demo-resource-${crypto.randomUUID().slice(0, 8)}`;
-      setResourceCredits((current) => {
-        const next = [credit, ...current];
-        localStorage.setItem("tutorconnect-demo-resource-credits", JSON.stringify(next));
-        return next;
-      });
-      createDemoReceipt("resource", 50, "Tutor resource publishing credit");
-      setNotice("Demo payment successful. One resource publishing credit is ready.");
-      return;
-    }
     if (!supabase || !user || profile?.role !== "tutor") {
       setNotice("Sign in to a tutor account before publishing resources.");
       return;
@@ -1685,7 +957,7 @@ export default function App() {
   }
 
   async function loadTutorDashboard(id: string) {
-    if (presentationDemo || !supabase) return;
+    if (!supabase) return;
     const [profileResult, contactResult, coursesResult, catalogueRequestsResult, reviewsResult, statsResult, resourcesResult, creditsResult] = await Promise.all([
       supabase.from("tutor_profiles").select("id,bio,qualifications,rate,delivery,availability,status,premium_until,views").eq("id", id).maybeSingle(),
       supabase.from("tutor_contacts")
@@ -1834,10 +1106,10 @@ export default function App() {
     event.preventDefault();
     if (!profile || profile.role !== "tutor") return;
     if (tutorProfile?.status !== "approved") {
-      setNotice(`Only approved ${presentationDemo ? "demo " : ""}tutors can publish resources.`);
+      setNotice("Only approved tutors can publish resources.");
       return;
     }
-    if (!presentationDemo && !supabase) {
+    if (!supabase) {
       setNotice("Resource publishing is unavailable. Please try again later.");
       return;
     }
@@ -1907,9 +1179,7 @@ export default function App() {
           setNotice(`The file for teaching video item ${index + 1} must be an MP4 or WebM video.`);
           return;
         }
-        storagePath = presentationDemo
-          ? null
-          : `${profile.id}/${resourceCredits[index]}/resource.${extension}`;
+        storagePath = `${profile.id}/${resourceCredits[index]}/resource.${extension}`;
       } else {
         let parsedUrl: URL;
         try {
@@ -1940,44 +1210,6 @@ export default function App() {
         resource_payment_id: resourceCredits[index],
         description: String(values.get(`description_${draftId}`) || "").trim() || null,
       });
-    }
-
-    if (presentationDemo) {
-      const createdAt = new Date().toISOString();
-      const resources: TutorResource[] = drafts.map((draft, index) => {
-        const fileUrl = draft.file ? URL.createObjectURL(draft.file) : null;
-        return {
-          id: Date.now() + index,
-          tutor_id: profile.id,
-          course_id: draft.course_id,
-          course_code: tutorCourses.find((item) => item.courses?.id === draft.course_id)?.courses?.code ?? null,
-          resource_type: draft.resource_type,
-          title: draft.title,
-          url: draft.url,
-          storage_path: null,
-          resource_payment_id: draft.resource_payment_id,
-          signed_url: fileUrl,
-          description: draft.description,
-          created_at: createdAt,
-        };
-      });
-      setTutorResources((current) => [...resources, ...current]);
-      const remainingCredits = resourceCredits.slice(drafts.length);
-      let persistenceWarning = "";
-      try {
-        const stored = readDemoResources();
-        const linkedResources = resources.filter((resource) => resource.url);
-        localStorage.setItem("tutorconnect-demo-resources", JSON.stringify([...linkedResources, ...stored].slice(0, 100)));
-        localStorage.setItem("tutorconnect-demo-resource-credits", JSON.stringify(remainingCredits));
-      } catch {
-        persistenceWarning = " The demo batch is available in this tab, but browser storage could not save it for later.";
-      }
-      setResourceCredits(remainingCredits);
-      form.reset();
-      setResourceDraftIds([crypto.randomUUID()]);
-      setResourceDraftDirty(false);
-      setNotice(`Demo batch published: ${resources.length} resources. ${resources.length} GHS 50 credits used.${persistenceWarning}`);
-      return;
     }
 
     const client = supabase;
@@ -2060,11 +1292,6 @@ export default function App() {
   }
 
   async function removeTutorResource(id: number) {
-    if (presentationDemo) {
-      setTutorResources((current) => current.filter((item) => item.id !== id));
-      setNotice("Demo resource removed.");
-      return;
-    }
     if (!supabase || !profile || profile.role !== "tutor") return;
     const resource = tutorResources.find((item) => item.id === id);
     const { error } = await supabase.from("tutor_resources").delete().eq("id", id).eq("tutor_id", profile.id);
@@ -2130,13 +1357,6 @@ export default function App() {
       setCourseOptions([]);
       return;
     }
-    if (presentationDemo) {
-      setCourseOptions(presentationDemoCourses.filter((course) =>
-        `${course.code} ${course.title}`.toLowerCase().includes(term.toLowerCase()),
-      ));
-      setNotice("");
-      return;
-    }
     if (!supabase || institutionId === "") {
       setNotice("Choose an institution before searching the course catalogue.");
       return;
@@ -2156,26 +1376,6 @@ export default function App() {
   async function requestCourse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
-    if (presentationDemo) {
-      const courseId = Number(values.get("course_id"));
-      const course = presentationDemoCourses.find((item) => item.id === courseId);
-      if (!profile || profile.role !== "tutor" || !course) {
-        setNotice("Choose a demo catalogue course from the tutor demo.");
-        return;
-      }
-      if (tutorCourses.some((item) => item.courses?.id === courseId)) {
-        setNotice("This course is already on your demo tutor profile.");
-        return;
-      }
-      setTutorCourses((current) => [...current, {
-        id: Date.now(),
-        status: "pending",
-        courses: course,
-      }]);
-      setCourseOptions((current) => current.filter((item) => item.id !== courseId));
-      setNotice("Demo course request sent for administrator approval.");
-      return;
-    }
     if (!supabase || !profile) return;
     const { error } = await supabase.from("tutor_courses").insert({
       tutor_id: profile.id,
@@ -2211,34 +1411,6 @@ export default function App() {
       return;
     }
     const academicUnitId = academicUnitValue ? Number(academicUnitValue) : null;
-    if (presentationDemo) {
-      const request: CourseCatalogueRequest = {
-        id: Date.now(),
-        institution_id: Number(institutionId),
-        requested_by: profile.id,
-        code,
-        title,
-        academic_unit_id: academicUnitId,
-        source_url: sourceUrl,
-        status: "pending",
-        admin_note: null,
-        course_id: null,
-        created_at: new Date().toISOString(),
-      };
-      const next = [request, ...courseCatalogueRequests];
-      setCourseCatalogueRequests(next);
-      try {
-        localStorage.setItem("tutorconnect-demo-course-requests", JSON.stringify(next));
-      } catch {
-        setCourseCatalogueRequests((current) => current.filter((item) => item.id !== request.id));
-        setNotice("The demo suggestion could not be saved in this browser. Check available browser storage and try again.");
-        return;
-      }
-      setNotice("Demo course suggestion saved to your tutor dashboard for administrator review.");
-      setCourseCatalogueFormOpen(false);
-      form.reset();
-      return;
-    }
     if (!supabase) {
       setNotice("Course catalogue is unavailable. Please try again later.");
       return;
@@ -2457,7 +1629,7 @@ export default function App() {
 
   useEffect(() => {
     const client = supabase;
-    if (!user || presentationDemo || !client || section !== "discover" || !visibleTutorIds.length) {
+    if (!user || !client || section !== "discover" || !visibleTutorIds.length) {
       setPresenceLastSeenByUserId({});
       setTutorPresenceLoaded(false);
       setTutorPresenceError(null);
@@ -2490,39 +1662,18 @@ export default function App() {
       active = false;
       window.clearInterval(interval);
     };
-  }, [user?.id, presentationDemo, section, visibleTutorIds]);
-
-  const filteredCourseResourceCourses = useMemo(() => {
-    const search = courseResourceQuery.trim().toLowerCase();
-    return courseResourceCourses.filter((course) =>
-      !search || `${course.code} ${course.title} ${unitPath(course.academic_unit_id, units)}`.toLowerCase().includes(search),
-    );
-  }, [courseResourceCourses, courseResourceQuery, units]);
-
-  const filteredCuratedSubjectResources = useMemo(() => {
-    const search = courseResourceQuery.trim().toLowerCase();
-    return curatedSubjectResources
-      .map((group) => ({
-        ...group,
-        resources: group.resources.filter((resource) =>
-          !search || `${group.subject} ${resource.title} ${resource.source} ${resource.description}`.toLowerCase().includes(search),
-        ),
-      }))
-      .filter((group) => group.resources.length > 0);
-  }, [courseResourceQuery]);
+  }, [user?.id, section, visibleTutorIds]);
 
   const unresolvedReports = adminReports.filter((item) => item.status !== "resolved").length;
   const pendingTutors = adminTutors.filter((item) => item.status === "pending").length;
 
-  return <div className={`app-shell ${!user && (!presentationDemo || demoAuthRequested) ? "app-shell-auth" : ""}`}>
+  return <div className={`app-shell ${!user ? "app-shell-auth" : ""}`}>
     <a className="skip-link" href="#main-content">Skip to main content</a>
     <header className="app-header">
       <a className="brand" href="/" aria-label="TutorConnect home" onClick={(event) => { event.preventDefault(); navigate(profile?.role === "tutor" ? "tutor" : profile?.role === "admin" ? "admin" : "discover"); }}>
-        <span className="brand-mark">TC</span><span>TutorConnect</span>
+        <img className="brand-mark" src="/tutorconnect-mark.svg" alt="" /><span>TutorConnect</span>
       </a>
       <nav aria-label="Main navigation">
-        {!presentationDemo && <a className="nav-link" href="/?demo=1">Presentation demo</a>}
-        <button className={section === "resources" ? "nav-link active" : "nav-link"} aria-current={section === "resources" ? "page" : undefined} onClick={() => navigate("resources")}>Courses & resources</button>
         {profile?.role === "student" && <>
           <button className={section === "discover" ? "nav-link active" : "nav-link"} aria-current={section === "discover" ? "page" : undefined} onClick={() => navigate("discover")}>Find tutors</button>
           <button className={section === "student" ? "nav-link active" : "nav-link"} aria-current={section === "student" ? "page" : undefined} onClick={() => navigate("student")}>My activity</button>
@@ -2530,46 +1681,20 @@ export default function App() {
         {profile?.role === "tutor" && <button className="nav-link active" aria-current={section === "tutor" ? "page" : undefined} onClick={() => navigate("tutor")}>Tutor dashboard</button>}
         {profile?.role === "admin" && <button className="nav-link active" aria-current={section === "admin" ? "page" : undefined} onClick={() => navigate("admin")}>Moderation</button>}
         {profile && <button className={section === "profile" ? "nav-link active" : "nav-link"} aria-current={section === "profile" ? "page" : undefined} onClick={() => navigate("profile")}>My profile{profile.is_verified && <VerifiedBadge label={profile.role === "tutor" ? "TutorConnect verified tutor" : "TutorConnect verified member"} />}</button>}
-        {user ? <button className="button button-outline" onClick={() => void signOut()}>Log out</button> : <button className="button button-outline" onClick={() => { setAuthMode("login"); setDemoAuthRequested(true); navigate("discover"); }}>Log in</button>}
+        <button className="theme-toggle" type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} aria-pressed={theme === "dark"}>
+          <span aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span>{theme === "dark" ? "Light" : "Dark"}
+        </button>
+        {user ? <button className="button button-outline" onClick={() => void signOut()}>Log out</button> : <button className="button button-outline" onClick={() => { setAuthMode("login"); navigate("discover"); }}>Log in</button>}
       </nav>
     </header>
 
-    {presentationDemo && <aside className="presentation-banner" aria-label="Presentation demo notice">
-      <div><strong>Presentation demo</strong><span>Profiles and course codes are examples, not official UCC records. Payments are simulated locally; no real money is charged.</span></div>
-      {demoRole !== "student" && <button className="button button-outline" type="button" onClick={() => location.assign("/?demo=1&role=student")}>Demo as student</button>}
-      {demoRole !== "tutor" && <button className="button button-outline" type="button" onClick={() => location.assign("/?demo=1&role=tutor")}>Demo as tutor</button>}
-      {!user && <button className="button button-primary" type="button" onClick={() => { setAuthMode("signup"); setDemoAuthRequested(true); setSection("discover"); }}>Create a real account</button>}
-      <a className="button button-outline" href="/">Exit demo</a>
-    </aside>}
-
     {notice && <div className="notice" role="status">{notice}
-      {notice.startsWith("Payment service") && <a className="notice-demo-link" href={`/?demo=1&role=${profile?.role === "tutor" ? "tutor" : "student"}`}>Open the no-charge demo</a>}
       <button aria-label="Dismiss message" onClick={() => setNotice("")}>×</button>
     </div>}
 
-    {demoReceipt && presentationDemo && <div className="demo-payment-backdrop" role="presentation">
-      <section className="demo-receipt" role="dialog" aria-modal="true" aria-labelledby="demo-receipt-title">
-        <div className="demo-receipt-status"><span aria-hidden="true">✓</span> Payment successful</div>
-        <p className="eyebrow">DEMO RECEIPT</p>
-        <h2 id="demo-receipt-title">{demoReceipt.description}</h2>
-        <dl>
-          <div><dt>Reference</dt><dd>{demoReceipt.reference}</dd></div>
-          <div><dt>Amount</dt><dd>GHS {demoReceipt.amount.toFixed(2)}</dd></div>
-          <div><dt>Payment method</dt><dd>Simulated demo</dd></div>
-          <div><dt>Status</dt><dd>Successful (simulated)</dd></div>
-          <div><dt>Date</dt><dd>{new Date(demoReceipt.created_at).toLocaleString()}</dd></div>
-        </dl>
-        <p className="muted">This downloadable receipt records the demo workflow only. No real payment was processed, so it is not proof of a real transaction.</p>
-        <div className="demo-receipt-actions">
-          <button className="button button-outline" type="button" onClick={() => downloadDemoReceipt(demoReceipt)}>Download PDF receipt</button>
-          <button className="button button-primary" type="button" onClick={() => setDemoReceipt(null)}>Continue</button>
-        </div>
-      </section>
-    </div>}
-
     {authMode === "update" && user ? <main id="main-content" tabIndex={-1} className="auth-layout">
-      <section className="auth-story"><div className="auth-brand-lockup"><span className="brand-mark">TC</span><span>Secure account recovery</span></div><p className="eyebrow">PASSWORD RESET</p><h1>Choose a new <em>password.</em></h1><p className="lead">Set a strong password to secure your TutorConnect account.</p></section>
-      <section className="auth-card auth-card-login" aria-labelledby="auth-heading"><div className="auth-logo" aria-hidden="true"><span className="brand-mark">TC</span></div><p className="eyebrow">ACCOUNT SECURITY</p><h2 id="auth-heading">Set a new password</h2>
+      <section className="auth-story"><div className="auth-brand-lockup"><img className="brand-mark" src="/tutorconnect-mark.svg" alt="" /><span>Secure account recovery</span></div><p className="eyebrow">PASSWORD RESET</p><h1>Choose a new <em>password.</em></h1><p className="lead">Set a strong password to secure your TutorConnect account.</p></section>
+      <section className="auth-card auth-card-login" aria-labelledby="auth-heading"><div className="auth-logo" aria-hidden="true"><img className="brand-mark" src="/tutorconnect-mark.svg" alt="" /></div><p className="eyebrow">ACCOUNT SECURITY</p><h2 id="auth-heading">Set a new password</h2>
         <form className="stack-form" onSubmit={(event) => void authenticate(event)}>
           <label>New password<div className="password-field"><input name="p" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={8} required /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>{showPassword ? "Hide" : "Show"}</button></div></label>
           <small className="muted">Use at least 8 characters. Avoid reusing a password from another site.</small>
@@ -2577,54 +1702,9 @@ export default function App() {
         </form>
         <button className="back-to-login" type="button" onClick={() => setAuthMode("login")}>Cancel and return to your account</button>
       </section>
-    </main> : section === "resources" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "OPEN LEARNING LIBRARY"}</p><h1>Courses & learning resources</h1><p className="muted">{presentationDemo ? "Explore curated subject resources and sample course-matched materials." : "Explore reputable public study materials by subject, plus course-specific resources and tutor-shared links."}</p></section>
-      <div className="resource-library-controls">
-        <label>Institution<select value={institutionId} onChange={(event) => { setInstitutionId(Number(event.target.value)); setUnitId(""); }}>
-          <option value="">Choose institution</option>{institutions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select></label>
-        <label>Search courses or subjects<input value={courseResourceQuery} onChange={(event) => setCourseResourceQuery(event.target.value)} placeholder="Course code, subject, title or source" /></label>
-        <button className="button button-outline" onClick={() => setCourseResourceReload((value) => value + 1)} disabled={courseResourcesLoading}>Refresh resources</button>
-      </div>
-      <p className="source-note">{presentationDemo
-        ? "The demo course entries are fictional. Curated third-party resources are real external learning materials; none are represented as UCC course records or as lessons created by demo tutors."
-        : "Curated materials link to their publishers and are not UCC course records, tutor lessons or endorsements. Course-linked items use verified university sources; past papers appear only when an official public source is confirmed."}</p>
-      <section className="course-resource-groups" aria-label="Curated learning resources by subject">
-        <div><p className="eyebrow">CURATED OPEN WEB RESOURCES</p><h2>Free learning resources by subject</h2><p className="muted">These external links are selected for the demo subjects. Follow each publisher’s terms; course fit may differ by syllabus.</p></div>
-        {filteredCuratedSubjectResources.length ? filteredCuratedSubjectResources.map((group) => <article className="course-resource-card" key={group.subject}>
-          <p className="eyebrow">SUBJECT</p><h2>{group.subject}</h2>
-          <div className="course-resource-list">{group.resources.map((resource) => <article className="course-resource-item" key={resource.url}>
-            <span className="resource-type">{resource.kind}</span>
-            <a className="course-resource-title" href={resource.url} target="_blank" rel="noreferrer"><b>{resource.title}</b></a>
-            <small>Source: {resource.source}</small>
-            <small>{resource.description}</small>
-            {resource.license && <small>License: <a href={resource.license_url} target="_blank" rel="noreferrer">{resource.license}</a></small>}
-          </article>)}</div>
-        </article>) : <p className="muted">No curated subject resources match this search.</p>}
-      </section>
-      <h2>Verified course-specific resources</h2>
-      {!supabase && !presentationDemo ? <div className="empty-state"><h2>Connect Supabase to load course resources</h2><p>Configure the project URL and publishable key, then run the database migrations.</p></div>
-        : courseResourcesLoading ? <div className="empty-state" role="status" aria-live="polite"><h2>Loading course resources</h2><p>Checking the verified course catalogue.</p></div>
-        : courseResourcesError ? <div className="empty-state" role="alert"><h2>Could not load course resources</h2><p>{courseResourcesError}</p><button className="button button-outline" onClick={() => setCourseResourceReload((value) => value + 1)}>Try again</button></div>
-          : filteredCourseResourceCourses.length ? <section className="course-resource-groups" aria-label="Course learning resources">
-            {filteredCourseResourceCourses.map((course) => <article className="course-resource-card" key={course.id}>
-              <div className="row-between"><div><p className="eyebrow">{course.code}</p><h2>{course.title}</h2><p className="muted">{unitPath(course.academic_unit_id, units)}</p></div>
-                {course.source_url && <a className="button button-outline" href={course.source_url} target="_blank" rel="noreferrer">Official course source</a>}
-              </div>
-              <div className="course-resource-list">{course.resources.map((resource) => <article className="course-resource-item" key={resource.id}>
-                <span className="resource-type">{courseResourceLabel(resource.resource_type)}</span>
-                <a className="course-resource-title" href={resource.url} target="_blank" rel="noreferrer"><b>{resource.title}</b></a>
-                <small>Source: {resource.source_name}</small>
-                {resource.description && <small>{resource.description}</small>}
-                {resource.license_name && <small>License: {resource.license_url ? <a href={resource.license_url} target="_blank" rel="noreferrer">{resource.license_name}</a> : resource.license_name}</small>}
-              </article>)}</div>
-            </article>)}
-          </section>
-            : courseResourceQuery.trim() ? <div className="empty-state"><h2>No course resources match</h2><p>Try a different code, title or academic unit.</p></div>
-            : <div className="empty-state"><h2>No verified course resources yet</h2><p>Course-specific items will appear here after an administrator links them to verified courses. Tutors can also share separate resources for each approved course on their profiles.</p></div>}
-    </main> : !user && (!presentationDemo || demoAuthRequested) ? <main id="main-content" tabIndex={-1} className="auth-layout">
+    </main> : !user ? <main id="main-content" tabIndex={-1} className="auth-layout">
       <section className="auth-story">
-        <div className="auth-brand-lockup"><span className="brand-mark">TC</span><span>Trusted course support</span></div>
+        <div className="auth-brand-lockup"><img className="brand-mark" src="/tutorconnect-mark.svg" alt="" /><span>Trusted course support</span></div>
         <p className="eyebrow">STUDY WITH CONFIDENCE</p>
         <h1>Learn from someone who understands <em>your course.</em></h1>
         <p className="lead">Discover approved tutors, preview learning resources and choose support that fits your subject.</p>
@@ -2635,7 +1715,7 @@ export default function App() {
         </div>
       </section>
       <section className={`auth-card ${authMode === "login" ? "auth-card-login" : ""}`} aria-labelledby="auth-heading">
-        <div className="auth-logo" aria-hidden="true"><span className="brand-mark">TC</span></div>
+        <div className="auth-logo" aria-hidden="true"><img className="brand-mark" src="/tutorconnect-mark.svg" alt="" /></div>
         <p className="eyebrow">{authMode === "login" ? "ACCOUNT ACCESS" : authMode === "signup" ? "CREATE ACCOUNT" : "PASSWORD RECOVERY"}</p>
         <h2 id="auth-heading">{authMode === "login" ? "Welcome back" : authMode === "signup" ? "Create your account" : "Reset your password"}</h2>
         <p className="auth-card-lead">{authMode === "login" ? "Sign in to continue." : authMode === "signup" ? "Join as a student or apply as a tutor." : "Enter your email and we’ll send you a secure reset link."}</p>
@@ -2663,14 +1743,11 @@ export default function App() {
           </label>}
           {authMode === "update" && <small className="muted">Use at least 8 characters. Avoid reusing a password from another site.</small>}
           {authMode === "login" && <button className="forgot-password-link" type="button" onClick={() => setAuthMode("forgot")}>Forgot password?</button>}
-          {!supabase && <p className="setup-note">Connect a Supabase project to enable sign-in, course search and role dashboards.</p>}
-          {authMode === "login" && <p className="setup-note">The admin dashboard is available only to accounts assigned the admin role in Supabase. There is no public admin sign-up option.</p>}
           <button className="button button-primary auth-submit" name={authMode === "signup" ? "up" : authMode === "update" ? "update" : "in"} disabled={busy}>
             {busy ? "Please wait…" : authMode === "signup" ? "Create account" : authMode === "forgot" ? "Send reset link" : authMode === "update" ? "Update password" : "Log in"}
           </button>
         </form>
         {authMode === "forgot" && <button className="back-to-login" type="button" onClick={() => setAuthMode("login")}>← Back to log in</button>}
-        {presentationDemo && demoAuthRequested && <a className="back-to-login" href="/?demo=1">Return to presentation demo</a>}
         {authMode === "signup" && <p className="small-note">Tutor accounts are created as pending applications. An administrator must approve your profile before students can find you.</p>}
         {authMode === "login" && <p className="auth-card-footer">LEARN · CONNECT · GROW TOGETHER</p>}
       </section>
@@ -2718,9 +1795,9 @@ export default function App() {
           </div>
         </form>
       </section>
-    </main> : (profile?.role === "student" || (presentationDemo && !user)) && section === "discover" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "DISCOVER"}</p><h1>{presentationDemo ? "Explore sample tutor profiles" : "Find a tutor for your course"}</h1><p className="muted">{presentationDemo ? "These fictional profiles show how course- and department-matched tutor discovery works." : "Search only approved tutors who teach the selected course and academic unit."}</p>
-        {(user || (presentationDemo && (demoRole === "student" || demoRole === "tutor"))) && <>
+    </main> : profile?.role === "student" && section === "discover" ? <main id="main-content" tabIndex={-1} className="page">
+      <section className="page-heading"><p className="eyebrow">DISCOVER</p><h1>Find a tutor for your course</h1><p className="muted">Search only approved tutors who teach the selected course and academic unit.</p>
+        {user && <>
           <PresenceIndicator status={myPresenceStatus} text="Your status" />
           {myPresenceError && <p className="presence-error" role="status">Live status unavailable: {myPresenceError}</p>}
         </>}
@@ -2737,12 +1814,12 @@ export default function App() {
         <label>College, school or department<select value={unitId} onChange={(event) => setUnitId(event.target.value ? Number(event.target.value) : "")}>
           <option value="">All academic units</option>{unitOptions.map((item) => <option key={item.id} value={item.id}>{unitPath(item.id, units)}</option>)}
         </select></label>
-        <label>Course code or title<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={presentationDemo ? "Search sample courses, e.g. CS101" : "Search an official course code or title"} required /></label>
+        <label>Course code or title<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search an official course code or title" required /></label>
         <button className="button button-primary" disabled={busy}>{busy ? "Searching…" : "Search tutors"}</button>
         {(query || unitId !== "") && <button className="button button-outline" type="button" onClick={() => { setQuery(""); setUnitId(""); setResults([]); setResourcesByTutor({}); setHasSearched(false); }}>Clear</button>}
       </form>
       {user && tutorPresenceError && <p className="presence-error" role="status">Tutor activity status could not be loaded: {tutorPresenceError}</p>}
-      {hasSearched && <p className="search-result-count" role="status">{busy ? "Searching for tutors…" : presentationDemo ? `${groupedTutors.length} fictional demo profile${groupedTutors.length === 1 ? "" : "s"} shown` : `${groupedTutors.length} approved tutor${groupedTutors.length === 1 ? "" : "s"} found`}</p>}
+      {hasSearched && <p className="search-result-count" role="status">{busy ? "Searching for tutors…" : `${groupedTutors.length} approved tutor${groupedTutors.length === 1 ? "" : "s"} found`}</p>}
       <section className="results-grid" aria-live="polite">
         {groupedTutors.length === 0 ? <div className="empty-state"><span className="empty-icon">⌕</span><h2>{hasSearched ? "No tutors found" : "Start with a course"}</h2><p>{hasSearched ? "No approved tutors were found for that course. Try a different course code, title or academic unit." : "Enter a course code or title to see approved, relevant tutors."}</p></div> : groupedTutors.map((tutor) => {
           const matchingResources = (resourcesByTutor[tutor.id] ?? []).filter((resource) =>
@@ -2753,13 +1830,10 @@ export default function App() {
             <p>{tutor.bio || "Tutor profile"}</p>
             <div className="unit-label">{[tutor.college, tutor.school, tutor.department].filter(Boolean).join(" / ") || "Academic unit not assigned"}</div>
             <p className="tutor-meta">{tutor.avg_rating ? `★ ${tutor.avg_rating.toFixed(1)} (${tutor.review_count} reviews)` : "No reviews yet"} · {tutor.rate == null ? "Rate not listed" : `GHS ${tutor.rate}/hr`} · {tutor.delivery || "Delivery to be confirmed"}</p>
-            {user && !presentationDemo && <PresenceIndicator status={tutorPresenceLoaded ? presenceStatusAt(presenceLastSeenByUserId[tutor.id] ?? null, presenceNow) : "unknown"} />}
+            {user && <PresenceIndicator status={tutorPresenceLoaded ? presenceStatusAt(presenceLastSeenByUserId[tutor.id] ?? null, presenceNow) : "unknown"} />}
             {matchingResources.length > 0 && <div className="resource-list"><h3>Teaching previews & learning resources</h3>{matchingResources.map((resource) => <a key={resource.id} href={resource.signed_url || resource.url || undefined} target="_blank" rel="noreferrer"><span>{resource.course_code ? `${resource.course_code} · ` : "General · "}{resourceLabel(resource.resource_type)}</span><b>{resource.title}</b>{resource.description && <small>{resource.description}</small>}</a>)}<small>Course links are shown only for the matching subjects. Third-party materials are identified by their source.</small></div>}
             {contacts[tutor.id] ? <div className="contact-box"><b>Contact unlocked</b><ContactLinks contact={contacts[tutor.id]} /></div>
-              : presentationDemo ? demoRole === "student"
-                ? <button className="button button-primary" type="button" disabled={busy} onClick={() => void unlockContact(tutor.id)}>Demo unlock contact · GHS 10</button>
-                : <button className="button button-outline" type="button" disabled>Contact unlock disabled in demo</button>
-                : <button className="button button-primary" disabled={!profile || busy} onClick={() => void unlockContact(tutor.id)}>Unlock contact · GHS 10</button>}
+              : <button className="button button-primary" disabled={!profile || busy} onClick={() => void unlockContact(tutor.id)}>Unlock contact · GHS 10</button>}
             {profile?.role === "student" && contacts[tutor.id] && <div className="feedback-grid">
               <form className="mini-form" onSubmit={(event) => void submitReview(event, tutor.id)}>
                 <h3>Leave a review</h3><label>Rating<select name="rating"><option value="5">5 stars</option><option value="4">4 stars</option><option value="3">3 stars</option><option value="2">2 stars</option><option value="1">1 star</option></select></label>
@@ -2785,7 +1859,7 @@ export default function App() {
         <section className="panel"><h2>My reports</h2>{studentReports.length ? studentReports.map((item) => <article className="list-item" key={item.id}><div className="row-between"><b>{item.category}</b><span className={`status ${item.status}`}>{item.status}</span></div><p>{item.description}</p>{item.resolution && <p className="resolution">Outcome: {item.resolution}</p>}<small>{dateLabel(item.created_at)}</small></article>) : <p className="muted">You have no reports.</p>}</section>
       </div>
     </main> : profile?.role === "tutor" && section === "tutor" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">TUTOR WORKSPACE</p><h1>Your teaching dashboard{tutorVerified && <span className="verified-mark verified-mark-large" role="img" aria-label="TutorConnect verified tutor" title={presentationDemo ? "Approved demo tutor with an active simulated plan" : "Approved tutor with an active, Paystack-verified plan"}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg></span>}</h1><p className="muted">Manage your profile, course requests, visibility and student feedback.</p>
+      <section className="page-heading"><p className="eyebrow">TUTOR WORKSPACE</p><h1>Your teaching dashboard{tutorVerified && <span className="verified-mark verified-mark-large" role="img" aria-label="TutorConnect verified tutor" title="Approved tutor with an active, Paystack-verified plan"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg></span>}</h1><p className="muted">Manage your profile, course requests, visibility and student feedback.</p>
         <PresenceIndicator status={myPresenceStatus} text="Your status" />
         {myPresenceError && <p className="presence-error" role="status">Live status unavailable: {myPresenceError}</p>}
       </section>
@@ -2797,14 +1871,14 @@ export default function App() {
       </div>
       <section className="panel premium-panel">
         <div className="row-between"><div><p className="eyebrow">TUTOR VISIBILITY</p><h2>Verified tutor mark</h2></div>{tutorVerified && <span className="premium-active-label">Active</span>}</div>
-        <p className="muted">The blue mark appears on your tutor profile only when an administrator has approved your account and {presentationDemo ? "your simulated demo plan is active." : "Paystack has verified an active paid plan."}</p>
+        <p className="muted">The blue mark appears on your tutor profile only when an administrator has approved your account and Paystack has verified an active paid plan.</p>
         {!tutorProfile ? <p className="muted" role="status">Loading your tutor profile…</p> : tutorProfile.status !== "approved" ? <p className="setup-note">Your tutor profile must be approved before you can activate a paid listing. Contact support if you need help with your application.</p> : <>
           {tutorVerified && tutorProfile.premium_until && <p className="premium-expiry">Your plan is active through <strong>{dateLabel(tutorProfile.premium_until)}</strong>. Renewing extends it from its current expiry date.</p>}
           <div className="plan-options">
             <article className="plan-card"><p className="eyebrow">MONTHLY</p><h3>GHS 50</h3><p className="muted">30 days of premium visibility</p><button className="button button-outline" type="button" disabled={busy} onClick={() => void startPremiumCheckout("monthly")}>{busy ? "Opening secure checkout…" : tutorVerified ? "Extend monthly plan" : "Choose monthly"}</button></article>
             <article className="plan-card"><p className="eyebrow">SEMESTER</p><h3>GHS 200</h3><p className="muted">120 days of premium visibility</p><button className="button button-primary" type="button" disabled={busy} onClick={() => void startPremiumCheckout("semester")}>{busy ? "Opening secure checkout…" : tutorVerified ? "Extend semester plan" : "Choose semester"}</button></article>
           </div>
-          <small className="muted">{presentationDemo ? "The simulated plan and badge are for presentation only and do not update a live payment account." : "Checkout opens on Paystack. The plan and badge activate only after the server verifies the payment."}</small>
+          <small className="muted">Checkout opens on Paystack. The plan and badge activate only after the server verifies the payment.</small>
         </>}
       </section>
       <div className="two-column">
@@ -2839,7 +1913,7 @@ export default function App() {
           <form className="mini-form course-search" onSubmit={(event) => void searchCourseOptions(event)}><h3>Find a course to teach</h3>
             <label>Course code or title<input name="course_query" placeholder="Search the verified course catalogue" required /></label><button className="button button-outline">Search catalogue</button>
           </form>
-          {courseSearchPerformed && courseOptions.length === 0 && <p className="setup-note" role="status">No matching courses are available in the verified catalogue yet. Suggest the course below; an administrator will verify its official source before adding it. <a href="/?demo=1&role=tutor">Try the sample tutor catalogue</a>.</p>}
+          {courseSearchPerformed && courseOptions.length === 0 && <p className="setup-note" role="status">No matching courses are available in the verified catalogue yet. Suggest the course below; an administrator will verify its official source before adding it.</p>}
           {courseOptions.map((course) => <form className="course-option" key={course.id} onSubmit={(event) => void requestCourse(event)}><input type="hidden" name="course_id" value={course.id} /><div><b>{course.code} · {course.title}</b><small>{unitPath(course.academic_unit_id, units)}</small></div><button className="button button-outline">Request approval</button></form>)}
           <button className="button button-outline" type="button" onClick={() => setCourseCatalogueFormOpen((open) => !open)} aria-expanded={courseCatalogueFormOpen} aria-controls="course-catalogue-request-form">{courseCatalogueFormOpen ? "Cancel course suggestion" : "Suggest a missing course"}</button>
           {courseCatalogueFormOpen && <form id="course-catalogue-request-form" className="mini-form course-search" onSubmit={(event) => void submitCourseCatalogueRequest(event)}>
@@ -2958,6 +2032,6 @@ export default function App() {
       </div>}
       {adminTab === "audit" && <section className="panel"><h2>Moderation audit log</h2>{adminActions.length ? adminActions.map((item) => <article className="list-item" key={item.id}><div className="row-between"><b>{item.action}</b><small>{dateLabel(item.created_at)}</small></div><p>{item.reason}</p><small>Admin {profileNames[item.admin_id] || item.admin_id} · Target {item.target_id}</small></article>) : <p className="muted">No admin actions recorded.</p>}</section>}
     </main> : <main id="main-content" tabIndex={-1} className="page"><section className="empty-state" role="status" aria-live="polite"><h1>Loading your workspace</h1><p className="muted">Your account role and permissions are being checked.</p></section></main>}
-    <footer className="app-footer"><span>TutorConnect · course units link to official sources; external learning resources are source-labelled and not lecturer endorsements.</span><span>Contact administrators: <a href="mailto:baidoomensahama@gmail.com">baidoomensahama@gmail.com</a> · <a href="tel:0245664985">0245664985</a> · <a href="https://wa.me/2332456698495" target="_blank" rel="noreferrer">WhatsApp</a></span></footer>
+    <footer className="app-footer"><span>TutorConnect · Learn, connect, grow together.</span><span>Contact administrators: <a href="mailto:baidoomensahama@gmail.com">baidoomensahama@gmail.com</a> · <a href="tel:0245664985">0245664985</a> · <a href="https://wa.me/2332456698495" target="_blank" rel="noreferrer">WhatsApp</a></span></footer>
   </div>;
 }

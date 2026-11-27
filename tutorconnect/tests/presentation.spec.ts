@@ -1,190 +1,27 @@
-import { readFile } from "node:fs/promises";
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
-async function verifyDemoReceiptDownload(page: Page, payer: "Student" | "Tutor", amount: number) {
-  const downloadPromise = page.waitForEvent("download");
-  await page.locator(".demo-receipt").getByRole("button", { name: "Download PDF receipt" }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^TC-DEMO-[A-F0-9]{8}\.pdf$/);
-  const path = await download.path();
-  if (!path) throw new Error("The demo receipt PDF did not download.");
-  const contents = await readFile(path, "latin1");
-  expect(contents).toContain("%PDF-1.4");
-  expect(contents).toContain(`Payer: ${payer} demo account`);
-  expect(contents).toContain(`Amount: GHS ${amount.toFixed(2)}`);
-  expect(contents).toContain("Status: Successful \\(simulated\\)");
-  expect(contents).toContain("No real money was charged");
-  const startXref = contents.match(/startxref\n(\d+)/);
-  if (!startXref) throw new Error("The demo receipt PDF has no cross-reference table.");
-  expect(contents.slice(Number(startXref[1])).startsWith("xref\n")).toBe(true);
-}
-
-test("presentation mode shows fictional tutor cards without payment actions and still allows real signup", async ({ page }) => {
-  await page.goto("/?demo=1");
-
-  await expect(page.getByRole("heading", { name: "Explore sample tutor profiles" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "UCC programmes" })).toHaveCount(0);
-  await expect(page.getByRole("complementary", { name: "Presentation demo notice" })).toContainText("Profiles and course codes are examples, not official UCC records.");
-  await expect(page.getByText("Fictional demo profile · no charges")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Contact unlock disabled in demo" })).toHaveCount(3);
-  await expect(page.getByRole("button", { name: "Create a real account" })).toBeVisible();
-
-  await page.getByLabel("Course code or title").fill("CS101");
-  await page.getByRole("button", { name: "Search tutors" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "1 fictional demo profile shown" })).toBeVisible();
-  const tutorCard = page.locator(".tutor-card").filter({ hasText: "Tutor Ama" });
-  await expect(tutorCard).toBeVisible();
-  await expect(tutorCard.getByRole("heading", { name: "Tutor Ama" })).toBeVisible();
-  await expect(tutorCard.getByRole("heading", { name: /Demo Tutor/ })).toHaveCount(0);
-  await expect(tutorCard).toContainText("Courses: CS101");
-  await expect(tutorCard.getByRole("link", { name: /CS50 Week 0/ })).toHaveAttribute("href", "https://youtu.be/2WtPyqwTLKM");
-  await expect(tutorCard.getByRole("link", { name: /CS50P/ })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Tutor Kofi" })).not.toBeVisible();
-
-  await page.getByRole("button", { name: "Create a real account" }).click();
-  await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Return to presentation demo" })).toBeVisible();
-});
-
-test("demo account presence becomes inactive after five minutes without activity", async ({ page }) => {
-  await page.clock.install();
-  await page.goto("/?demo=1&role=student");
-
-  await expect(page.getByLabel("Your status: Active now")).toBeVisible();
-  await page.clock.fastForward(5 * 60 * 1000 + 1_000);
-  await expect(page.getByLabel("Your status: Inactive")).toBeVisible();
-});
-
-test("one tutor profile can show multiple subjects with resources matched to each", async ({ page }) => {
-  await page.goto("/?demo=1");
-  await page.getByLabel("Course code or title").fill("CS10");
-  await page.getByRole("button", { name: "Search tutors" }).click();
-
-  await expect(page.getByRole("status").filter({ hasText: "1 fictional demo profile shown" })).toBeVisible();
-  const tutorCard = page.locator(".tutor-card").filter({ hasText: "Tutor Ama" });
-  await expect(tutorCard).toHaveCount(1);
-  await expect(tutorCard).toContainText("Courses: CS101, CS102");
-  await expect(tutorCard.getByText("CS101 · Course resource")).toBeVisible();
-  await expect(tutorCard.getByText("CS102 · Course resource")).toBeVisible();
-  await expect(tutorCard.getByRole("link", { name: /CS50 Week 0/ })).toBeVisible();
-  await expect(tutorCard.getByRole("link", { name: /CS50P/ })).toBeVisible();
-});
-
-test("presentation course resources are clearly identified as examples", async ({ page }) => {
-  await page.goto("/?demo=1");
-
-  await page.getByRole("button", { name: "Courses & resources" }).click();
-  await expect(page.getByRole("heading", { name: "Courses & learning resources" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Linear Algebra I (demo course)" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Business and Management", exact: true })).toBeVisible();
-  await expect(page.getByText(/none are represented as UCC course records/i)).toBeVisible();
-});
-
-test("student demo can complete a simulated unlock and receive a receipt", async ({ page }) => {
-  await page.goto("/?demo=1&role=student");
-  await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toHaveCount(0);
-  await page.getByLabel("Course code or title").fill("CS101");
-  await page.getByRole("button", { name: "Search tutors" }).click();
-
-  await page.getByRole("button", { name: "Demo unlock contact · GHS 10" }).click();
-  await expect(page.getByRole("dialog", { name: "Tutor contact unlock — Tutor Ama" })).toBeVisible();
-  await expect(page.getByText("Successful (simulated)").first()).toBeVisible();
-  await expect(page.locator(".demo-receipt")).toContainText("Payment method");
-  await expect(page.locator(".demo-receipt")).toContainText("Simulated demo");
-  await verifyDemoReceiptDownload(page, "Student", 10);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toBeVisible();
-  await expect(page.getByText("Contact unlocked", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Email: tutor.demo@example.com" }).first()).toBeVisible();
-});
-
-test("tutor demo can activate a plan and purchase a resource publishing credit", async ({ page }) => {
+test("demo query parameters do not expose fictional accounts or payment flows", async ({ page }) => {
   await page.goto("/?demo=1&role=tutor");
-  await expect(page.getByRole("heading", { name: /Your teaching dashboard/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: "UCC programmes" })).toHaveCount(0);
-  await expect(page.getByRole("img", { name: "TutorConnect verified tutor" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Choose monthly" }).click();
-  await expect(page.getByRole("dialog", { name: "Monthly tutor listing plan" })).toBeVisible();
-  await verifyDemoReceiptDownload(page, "Tutor", 50);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.locator(".stat-card").filter({ hasText: "Verified plan" })).toContainText("Active");
-  await expect(page.locator(".page-heading").getByRole("img", { name: "TutorConnect verified tutor" })).toBeVisible();
-  await expect(page.locator(".stat-card").filter({ hasText: "Profile status" }).getByRole("img", { name: "TutorConnect verified tutor" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.locator(".brand .brand-mark")).toHaveAttribute("src", "/tutorconnect-mark.svg");
+  await expect(page.getByRole("link", { name: "Presentation demo" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Courses & resources" })).toHaveCount(0);
+  await expect(page.getByText(/presentation demo|fictional profile|simulated payment/i)).toHaveCount(0);
+  await expect(page.locator(".tutor-card")).toHaveCount(0);
+});
 
-  await page.getByRole("button", { name: "Buy one GHS 50 resource credit" }).click();
-  await expect(page.getByRole("dialog", { name: "Tutor resource publishing credit" })).toBeVisible();
-  await verifyDemoReceiptDownload(page, "Tutor", 50);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText(/Unused credits: 1/)).toBeVisible();
+test("theme choice is available and persists across page reloads", async ({ page }) => {
+  await page.goto("/");
 
-  await page.locator(".course-search input[name='course_query']").fill("BUS");
-  await page.getByRole("button", { name: "Search catalogue" }).click();
-  await expect(page.getByText("BUS204 · Business Management")).toBeVisible();
-  await page.getByRole("button", { name: "Request approval" }).click();
-  await expect(page.getByText("Demo course request sent for administrator approval.")).toBeVisible();
-  await expect(page.locator(".list-item").filter({ hasText: "BUS204 · Business Management" })).toContainText("pending");
+  const themeToggle = page.getByRole("button", { name: "Switch to dark theme" });
+  await expect(themeToggle).toBeVisible();
+  await themeToggle.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByRole("button", { name: "Switch to light theme" })).toBeVisible();
 
-  await page.locator(".course-search input[name='course_query']").fill("Introduction to Data Analytics");
-  await page.getByRole("button", { name: "Search catalogue" }).click();
-  await expect(page.locator(".setup-note[role='status']")).toContainText("No matching courses are available");
-  await page.getByRole("button", { name: "Suggest a missing course" }).click();
-  await page.getByLabel("Course code", { exact: true }).fill("DATA101");
-  await page.getByLabel("Course title", { exact: true }).fill("Introduction to Data Analytics");
-  await page.getByRole("button", { name: "Save course suggestion" }).click();
-  const catalogueSuggestions = page.getByRole("region", { name: "My course catalogue suggestions" });
-  await expect(catalogueSuggestions.getByText("DATA101 · Introduction to Data Analytics")).toBeVisible();
-  await expect(catalogueSuggestions.locator(".status.pending")).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("region", { name: "My course catalogue suggestions" }).getByText("DATA101 · Introduction to Data Analytics")).toBeVisible();
-
-  await page.getByRole("button", { name: "Buy one GHS 50 resource credit" }).click();
-  await expect(page.getByRole("dialog", { name: "Tutor resource publishing credit" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText(/Unused credits: 2/)).toBeVisible();
-  const resourceBatch = page.getByRole("form", { name: "Publish resource batch" });
-  const resourceDrafts = resourceBatch.locator(".resource-draft");
-  await expect(resourceDrafts).toHaveCount(1);
-  await page.getByRole("button", { name: "Add another resource" }).click();
-  await expect(resourceDrafts).toHaveCount(2);
-  const fileResource = resourceDrafts.nth(0);
-  await fileResource.getByLabel("Resource type").selectOption("course_resource");
-  await fileResource.getByLabel("Approved course").selectOption("-2");
-  await fileResource.getByLabel("Title").fill("Demo study notes");
-  await fileResource.getByLabel("Upload a file").setInputFiles({
-    name: "study-notes.pdf",
-    mimeType: "application/pdf",
-    buffer: Buffer.from("%PDF-demo resource"),
-  });
-  const linkResource = resourceDrafts.nth(1);
-  await linkResource.getByLabel("Resource type").selectOption("teaching_video");
-  await linkResource.getByLabel("Approved course").selectOption("-2");
-  await linkResource.getByLabel("Title").fill("Demo teaching video");
-  await linkResource.getByLabel("Or external HTTPS link").fill("https://youtu.be/2WtPyqwTLKM");
-  await resourceBatch.getByRole("button", { name: "Publish 2 resources" }).click();
-  await expect(page.getByRole("status")).toContainText("Demo batch published: 2 resources");
-  await expect(page.locator(".resource-row").filter({ hasText: "Demo study notes" })).toBeVisible();
-  await expect(page.locator(".resource-row").filter({ hasText: "Demo teaching video" })).toBeVisible();
-
-  await page.goto("/?demo=1&role=student");
-  await page.getByLabel("Course code or title").fill("CS101");
-  await page.getByRole("button", { name: "Search tutors" }).click();
-  await expect(page.getByRole("link", { name: "Demo teaching video" })).toBeVisible();
-  const demoTutorCard = page.locator(".tutor-card").filter({ hasText: "Tutor Ama" });
-  await expect(demoTutorCard.getByRole("img", { name: "TutorConnect verified tutor" })).toBeVisible();
-});
-
-test("tutor resource batches allow at most five items", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("tutorconnect-demo-resource-credits", JSON.stringify(["credit-1", "credit-2", "credit-3", "credit-4", "credit-5", "credit-6"]));
-  });
-  await page.goto("/?demo=1&role=tutor");
-  const resourceBatch = page.getByRole("form", { name: "Publish resource batch" });
-  const resourceDrafts = resourceBatch.locator(".resource-draft");
-  await expect(resourceDrafts).toHaveCount(1);
-  for (let count = 1; count < 5; count += 1) {
-    await page.getByRole("button", { name: "Add another resource" }).click();
-  }
-  await expect(resourceDrafts).toHaveCount(5);
-  await expect(page.getByRole("button", { name: "Add another resource" })).toBeDisabled();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "Switch to light theme" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });

@@ -10,7 +10,7 @@ React, TypeScript, Supabase and Paystack prototype.
 4. To enable the protected admin dashboard for a trusted account, find the account ID with `select id, email from auth.users where email='admin@example.com';`, then run `update public.profiles set role='admin' where id='<account-uuid>';`. Never add an admin option to public sign-up.
 5. Start the app with `npm run dev`.
 
-The interface can be previewed without Supabase credentials, but authentication and data-backed screens require a configured Supabase project. After applying migration 008, redeploy `supabase/functions/payments` and configure the Paystack secret and webhook in test mode.
+The interface can be previewed without Supabase credentials, but authentication and data-backed screens require a configured Supabase project. To use Paystack test mode, set `PAYSTACK_SECRET` in Supabase Dashboard → Edge Functions → Secrets, then deploy `supabase/functions/payments` with `supabase functions deploy payments --no-verify-jwt` from the `tutorconnect` directory. The checked-in `supabase/config.toml` keeps JWT gateway verification disabled so signed-in checkout requests are validated by the function and Paystack webhooks can reach its HMAC check. Configure the Paystack test webhook URL to `https://<project-ref>.supabase.co/functions/v1/payments`. Never put the secret key in `.env`, a `VITE_` variable, source control, or browser code.
 
 ## Presentation demo
 

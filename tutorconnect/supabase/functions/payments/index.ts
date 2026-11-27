@@ -227,7 +227,7 @@ Deno.serve(async (request) => {
   });
   if (insertError) return json({ error: "Could not create a payment record. Please retry." }, 503);
 
-  let initialization: { status?: boolean; data?: { authorization_url?: string } };
+  let initialization: { status?: boolean; message?: string; data?: { authorization_url?: string } };
   try {
     const response = await fetch(`${paystackUrl}/transaction/initialize`, {
       method: "POST",
@@ -249,7 +249,7 @@ Deno.serve(async (request) => {
       return json({
         error: updateError
           ? `Paystack could not start checkout, and the pending payment could not be marked failed: ${updateError.message}`
-          : "Paystack could not start checkout. Please try again.",
+          : `Paystack could not start checkout: ${initialization.message || "the provider returned no checkout URL."}`,
       }, updateError ? 503 : 502);
     }
   } catch {

@@ -64,6 +64,19 @@ type TutorProfile = { id: string; bio: string | null; qualifications: string | n
 type Course = { id: number; institution_id: number; code: string; title: string; academic_unit_id: number | null; source_url: string | null };
 type AcademicProgramme = { id: number; programme_title: string; award: string; level: string; catalogue_unit: string; college_name: string | null; school_name: string | null; source_url: string };
 type TutorCourse = { id: number; status: string; courses: Course | null };
+type CourseCatalogueRequest = {
+  id: number;
+  institution_id: number;
+  requested_by: string;
+  code: string;
+  title: string;
+  academic_unit_id: number | null;
+  source_url: string | null;
+  status: "pending" | "approved" | "rejected";
+  admin_note: string | null;
+  course_id: number | null;
+  created_at: string;
+};
 type TutorStats = { profile_views: number; contact_unlocks: number; review_count: number; average_rating: number | null };
 type AdminTutor = { id: string; bio: string | null; qualifications: string | null; status: string };
 type AdminTutorCourse = { id: number; tutor_id: string; status: string; courses: Course | null };
@@ -108,6 +121,29 @@ function readDemoResources(): TutorResource[] {
       && "resource_type" in item && ["teaching_video", "course_resource", "past_questions"].includes(String(item.resource_type))
       && "title" in item && typeof item.title === "string"
       && "url" in item && typeof item.url === "string"
+      && "created_at" in item && typeof item.created_at === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+function readDemoCourseCatalogueRequests(): CourseCatalogueRequest[] {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem("tutorconnect-demo-course-requests") || "[]");
+    if (!Array.isArray(stored)) return [];
+    return stored.filter((item: unknown): item is CourseCatalogueRequest =>
+      item !== null
+      && typeof item === "object"
+      && "id" in item && typeof item.id === "number"
+      && "institution_id" in item && typeof item.institution_id === "number"
+      && "requested_by" in item && typeof item.requested_by === "string"
+      && "code" in item && typeof item.code === "string"
+      && "title" in item && typeof item.title === "string"
+      && "academic_unit_id" in item && (item.academic_unit_id === null || typeof item.academic_unit_id === "number")
+      && "source_url" in item && (item.source_url === null || typeof item.source_url === "string")
+      && "status" in item && ["pending", "approved", "rejected"].includes(String(item.status))
+      && "admin_note" in item && (item.admin_note === null || typeof item.admin_note === "string")
+      && "course_id" in item && (item.course_id === null || typeof item.course_id === "number")
       && "created_at" in item && typeof item.created_at === "string",
     );
   } catch {
@@ -545,6 +581,13 @@ const presentationDemoCourses: Course[] = [
   { id: -3, institution_id: -1, code: "CS102", title: "Programming Fundamentals", academic_unit_id: -3, source_url: null },
   { id: -1, institution_id: -1, code: "MATH120", title: "Linear Algebra", academic_unit_id: -6, source_url: null },
   { id: -4, institution_id: -1, code: "BUS204", title: "Business Management", academic_unit_id: -5, source_url: null },
+  { id: -5, institution_id: -1, code: "STAT101", title: "Introduction to Statistics", academic_unit_id: -6, source_url: null },
+  { id: -6, institution_id: -1, code: "ECON101", title: "Principles of Economics", academic_unit_id: -5, source_url: null },
+  { id: -7, institution_id: -1, code: "ACCT101", title: "Introduction to Accounting", academic_unit_id: -5, source_url: null },
+  { id: -8, institution_id: -1, code: "PHYS101", title: "General Physics", academic_unit_id: -2, source_url: null },
+  { id: -9, institution_id: -1, code: "CHEM101", title: "General Chemistry", academic_unit_id: -2, source_url: null },
+  { id: -10, institution_id: -1, code: "BIOL101", title: "General Biology", academic_unit_id: -2, source_url: null },
+  { id: -11, institution_id: -1, code: "WRIT101", title: "Academic Writing", academic_unit_id: null, source_url: null },
 ];
 
 export default function App() {
@@ -572,6 +615,7 @@ export default function App() {
   const [tutorProfile, setTutorProfile] = useState<TutorProfile | null>(null);
   const [tutorContact, setTutorContact] = useState<Contact | null>(null);
   const [tutorCourses, setTutorCourses] = useState<TutorCourse[]>([]);
+  const [courseCatalogueRequests, setCourseCatalogueRequests] = useState<CourseCatalogueRequest[]>([]);
   const [tutorResources, setTutorResources] = useState<TutorResource[]>([]);
   const [resourceCredits, setResourceCredits] = useState<string[]>([]);
   const [resourceCreditsError, setResourceCreditsError] = useState<string | null>(null);
@@ -580,8 +624,11 @@ export default function App() {
   const [tutorStats, setTutorStats] = useState<TutorStats | null>(null);
   const [courseOptions, setCourseOptions] = useState<Course[]>([]);
   const [courseSearchPerformed, setCourseSearchPerformed] = useState(false);
+  const [courseSearchTerm, setCourseSearchTerm] = useState("");
+  const [courseCatalogueFormOpen, setCourseCatalogueFormOpen] = useState(false);
   const [adminTutors, setAdminTutors] = useState<AdminTutor[]>([]);
   const [adminTutorCourses, setAdminTutorCourses] = useState<AdminTutorCourse[]>([]);
+  const [adminCourseCatalogueRequests, setAdminCourseCatalogueRequests] = useState<CourseCatalogueRequest[]>([]);
   const [adminProfiles, setAdminProfiles] = useState<AdminProfile[]>([]);
   const [adminReports, setAdminReports] = useState<Report[]>([]);
   const [adminReviews, setAdminReviews] = useState<Review[]>([]);
@@ -626,6 +673,7 @@ export default function App() {
     setTutorProfile(null);
     setTutorContact(null);
     setTutorCourses([]);
+    setCourseCatalogueRequests([]);
     setTutorResources([]);
     setResourceCredits([]);
     setResourceCreditsError(null);
@@ -633,6 +681,7 @@ export default function App() {
     setTutorStats(null);
     setAdminTutors([]);
     setAdminTutorCourses([]);
+    setAdminCourseCatalogueRequests([]);
     setAdminProfiles([]);
     setAdminReports([]);
     setAdminReviews([]);
@@ -689,6 +738,7 @@ export default function App() {
         { id: -1, status: "approved", courses: { id: -2, institution_id: -1, code: "CS101", title: "Introduction to Computing", academic_unit_id: -3, source_url: null } },
         { id: -2, status: "approved", courses: { id: -3, institution_id: -1, code: "CS102", title: "Programming Fundamentals", academic_unit_id: -3, source_url: null } },
       ]);
+      setCourseCatalogueRequests(readDemoCourseCatalogueRequests());
       setTutorResources([
         ...presentationTutorResources.filter((resource) => resource.tutor_id === id),
         ...readDemoResources().filter((resource) => resource.tutor_id === id),
@@ -1249,6 +1299,7 @@ export default function App() {
       `Status: SUCCESSFUL (simulated)`,
       `Purpose: ${receipt.description}`,
       `Amount: GHS ${receipt.amount.toFixed(2)}`,
+      "Payment method: Simulated presentation demo",
       `Date: ${new Date(receipt.created_at).toLocaleString()}`,
       "",
       "This is a presentation demo receipt. No real money was charged.",
@@ -1436,18 +1487,19 @@ export default function App() {
 
   async function loadTutorDashboard(id: string) {
     if (presentationDemo || !supabase) return;
-    const [profileResult, contactResult, coursesResult, reviewsResult, statsResult, resourcesResult, creditsResult] = await Promise.all([
+    const [profileResult, contactResult, coursesResult, catalogueRequestsResult, reviewsResult, statsResult, resourcesResult, creditsResult] = await Promise.all([
       supabase.from("tutor_profiles").select("id,bio,qualifications,rate,delivery,availability,status,premium_until,views").eq("id", id).maybeSingle(),
       supabase.from("tutor_contacts")
         .select("tutor_id,phone,email,whatsapp_url,instagram_url,facebook_url,linkedin_url,x_url,website_url")
         .eq("tutor_id", id).maybeSingle(),
       supabase.from("tutor_courses").select("id,status,courses(id,institution_id,code,title,academic_unit_id,source_url)").eq("tutor_id", id).order("id"),
+      supabase.from("course_catalogue_requests").select("id,institution_id,requested_by,code,title,academic_unit_id,source_url,status,admin_note,course_id,created_at").eq("requested_by", id).order("created_at", { ascending: false }),
       supabase.from("reviews").select("id,tutor_id,student_id,rating,comment,status,created_at").eq("tutor_id", id).order("created_at", { ascending: false }),
       supabase.rpc("tutor_dashboard_stats"),
       supabase.from("tutor_resources").select("id,tutor_id,course_id,resource_type,title,url,storage_path,resource_payment_id,description,created_at").eq("tutor_id", id).order("created_at", { ascending: false }),
       supabase.from("payments").select("id").eq("user_id", id).eq("purpose", "resource").eq("status", "paid").is("resource_claimed_at", null).order("created_at"),
     ]);
-    const failure = profileResult.error || contactResult.error || coursesResult.error || reviewsResult.error || statsResult.error || resourcesResult.error || creditsResult.error;
+    const failure = profileResult.error || contactResult.error || coursesResult.error || catalogueRequestsResult.error || reviewsResult.error || statsResult.error || resourcesResult.error || creditsResult.error;
     if (failure) setNotice(failure.message);
     setTutorProfile(profileResult.data ?? null);
     setTutorContact(contactResult.data ?? null);
@@ -1455,6 +1507,7 @@ export default function App() {
       ...row,
       courses: Array.isArray(row.courses) ? row.courses[0] ?? null : row.courses,
     })));
+    setCourseCatalogueRequests(catalogueRequestsResult.data ?? []);
     setTutorReviews(reviewsResult.data ?? []);
     try {
       setTutorResources(await signTutorResourceFiles(resourcesResult.data ?? []));
@@ -1858,6 +1911,8 @@ export default function App() {
     setCourseSearchPerformed(true);
     const values = new FormData(event.currentTarget);
     const term = String(values.get("course_query")).trim();
+    setCourseSearchTerm(term);
+    setCourseCatalogueFormOpen(false);
     if (!term) {
       setCourseOptions([]);
       return;
@@ -1878,7 +1933,10 @@ export default function App() {
       supabase.from("courses").select("id,institution_id,code,title,academic_unit_id,source_url").eq("institution_id", institutionId).ilike("title", `%${term}%`).eq("active", true).limit(20),
     ]);
     const error = codeResult.error || titleResult.error;
-    if (error) setNotice(error.message);
+    if (error) {
+      setCourseOptions([]);
+      setNotice(error.message);
+    }
     else setCourseOptions(Array.from(new Map([...(codeResult.data ?? []), ...(titleResult.data ?? [])].map((course) => [course.id, course])).values()));
   }
 
@@ -1915,24 +1973,106 @@ export default function App() {
     if (!error) await loadTutorDashboard(profile.id);
   }
 
+  async function submitCourseCatalogueRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const values = new FormData(form);
+    const code = String(values.get("code") || "").trim().toUpperCase();
+    const title = String(values.get("title") || "").trim();
+    const academicUnitValue = String(values.get("academic_unit_id") || "");
+    const sourceUrl = optionalFormValue(values, "source_url");
+    if (!code || !title) {
+      setNotice("Enter both a course code and title.");
+      return;
+    }
+    if (sourceUrl) {
+      try {
+        if (new URL(sourceUrl).protocol !== "https:") throw new Error();
+      } catch {
+        setNotice("Course sources must use a valid HTTPS link.");
+        return;
+      }
+    }
+    if (!profile || profile.role !== "tutor" || institutionId === "") {
+      setNotice("Sign in as a tutor and choose an institution before requesting a course.");
+      return;
+    }
+    const academicUnitId = academicUnitValue ? Number(academicUnitValue) : null;
+    if (presentationDemo) {
+      const request: CourseCatalogueRequest = {
+        id: Date.now(),
+        institution_id: Number(institutionId),
+        requested_by: profile.id,
+        code,
+        title,
+        academic_unit_id: academicUnitId,
+        source_url: sourceUrl,
+        status: "pending",
+        admin_note: null,
+        course_id: null,
+        created_at: new Date().toISOString(),
+      };
+      const next = [request, ...courseCatalogueRequests];
+      setCourseCatalogueRequests(next);
+      try {
+        localStorage.setItem("tutorconnect-demo-course-requests", JSON.stringify(next));
+      } catch {
+        setCourseCatalogueRequests((current) => current.filter((item) => item.id !== request.id));
+        setNotice("The demo suggestion could not be saved in this browser. Check available browser storage and try again.");
+        return;
+      }
+      setNotice("Demo course suggestion saved to your tutor dashboard for administrator review.");
+      setCourseCatalogueFormOpen(false);
+      form.reset();
+      return;
+    }
+    if (!supabase) {
+      setNotice("Course catalogue is unavailable. Please try again later.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.from("course_catalogue_requests").insert({
+        institution_id: Number(institutionId),
+        requested_by: profile.id,
+        code,
+        title,
+        academic_unit_id: academicUnitId,
+        source_url: sourceUrl,
+      }).select("id,institution_id,requested_by,code,title,academic_unit_id,source_url,status,admin_note,course_id,created_at").single();
+      if (error) {
+        setNotice(error.message);
+        return;
+      }
+      setCourseCatalogueRequests((current) => [data, ...current]);
+      setNotice("Course suggestion saved to your dashboard. It will join the shared catalogue after an administrator verifies it.");
+      setCourseCatalogueFormOpen(false);
+      form.reset();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function loadAdminDashboard() {
     if (!supabase) return;
-    const [tutorsResult, tutorCoursesResult, profilesResult, reportsResult, reviewsResult, coursesResult, actionsResult] = await Promise.all([
+    const [tutorsResult, tutorCoursesResult, catalogueRequestsResult, profilesResult, reportsResult, reviewsResult, coursesResult, actionsResult] = await Promise.all([
       supabase.from("tutor_profiles").select("id,bio,qualifications,status"),
       supabase.from("tutor_courses").select("id,tutor_id,status,courses(id,institution_id,code,title,academic_unit_id,source_url)").eq("status", "pending").order("id"),
+      supabase.from("course_catalogue_requests").select("id,institution_id,requested_by,code,title,academic_unit_id,source_url,status,admin_note,course_id,created_at").eq("status", "pending").order("created_at"),
       supabase.from("profiles").select("id,full_name,role"),
       supabase.from("reports").select("id,tutor_id,reporter_id,category,description,status,resolution,created_at").order("created_at", { ascending: false }),
       supabase.from("reviews").select("id,tutor_id,student_id,rating,comment,status,created_at").order("created_at", { ascending: false }),
       supabase.from("courses").select("id,institution_id,code,title,academic_unit_id,source_url").order("title"),
       supabase.from("admin_actions").select("id,admin_id,target_id,action,reason,created_at").order("created_at", { ascending: false }).limit(100),
     ]);
-    const failure = tutorsResult.error || tutorCoursesResult.error || profilesResult.error || reportsResult.error || reviewsResult.error || coursesResult.error || actionsResult.error;
+    const failure = tutorsResult.error || tutorCoursesResult.error || catalogueRequestsResult.error || profilesResult.error || reportsResult.error || reviewsResult.error || coursesResult.error || actionsResult.error;
     if (failure) setNotice(failure.message);
     setAdminTutors(tutorsResult.data ?? []);
     setAdminTutorCourses((tutorCoursesResult.data ?? []).map((row) => ({
       ...row,
       courses: Array.isArray(row.courses) ? row.courses[0] ?? null : row.courses,
     })));
+    setAdminCourseCatalogueRequests(catalogueRequestsResult.data ?? []);
     setAdminProfiles((profilesResult.data ?? []).map((item) => ({ ...item, role: roleFrom(item.role) })));
     setAdminReports(reportsResult.data ?? []);
     setAdminReviews(reviewsResult.data ?? []);
@@ -1976,6 +2116,20 @@ export default function App() {
       p_reason: String(values.get("reason")).trim(),
     });
     setNotice(error?.message ?? "Course decision saved to the audit log.");
+    if (!error) await loadAdminDashboard();
+  }
+
+  async function moderateCourseCatalogueRequest(event: FormEvent<HTMLFormElement>, requestId: number) {
+    event.preventDefault();
+    if (!supabase) return;
+    const values = new FormData(event.currentTarget);
+    const { error } = await supabase.rpc("admin_review_course_catalogue_request", {
+      p_request: requestId,
+      p_status: String(values.get("status")),
+      p_reason: String(values.get("reason")).trim(),
+      p_source_url: optionalFormValue(values, "source_url"),
+    });
+    setNotice(error?.message ?? "Catalogue request decision saved to the audit log.");
     if (!error) await loadAdminDashboard();
   }
 
@@ -2135,7 +2289,7 @@ export default function App() {
     </header>
 
     {presentationDemo && <aside className="presentation-banner" aria-label="Presentation demo notice">
-      <div><strong>Presentation demo</strong><span>Profiles and programme entries are fictional. Payments are simulated locally; no real money is charged.</span></div>
+      <div><strong>Presentation demo</strong><span>Profiles and course codes are examples, not official UCC records. Payments are simulated locally; no real money is charged.</span></div>
       {demoRole !== "student" && <button className="button button-outline" type="button" onClick={() => location.assign("/?demo=1&role=student")}>Demo as student</button>}
       {demoRole !== "tutor" && <button className="button button-outline" type="button" onClick={() => location.assign("/?demo=1&role=tutor")}>Demo as tutor</button>}
       {!user && <button className="button button-primary" type="button" onClick={() => { setAuthMode("signup"); setDemoAuthRequested(true); setSection("discover"); }}>Create a real account</button>}
@@ -2155,6 +2309,7 @@ export default function App() {
         <dl>
           <div><dt>Reference</dt><dd>{demoReceipt.reference}</dd></div>
           <div><dt>Amount</dt><dd>GHS {demoReceipt.amount.toFixed(2)}</dd></div>
+          <div><dt>Payment method</dt><dd>Simulated demo</dd></div>
           <div><dt>Status</dt><dd>Successful (simulated)</dd></div>
           <div><dt>Date</dt><dd>{new Date(demoReceipt.created_at).toLocaleString()}</dd></div>
         </dl>
@@ -2442,8 +2597,27 @@ export default function App() {
           <form className="mini-form course-search" onSubmit={(event) => void searchCourseOptions(event)}><h3>Find a course to teach</h3>
             <label>Course code or title<input name="course_query" placeholder="Search the verified course catalogue" required /></label><button className="button button-outline">Search catalogue</button>
           </form>
-          {courseSearchPerformed && courseOptions.length === 0 && <p className="setup-note" role="status">No matching courses are available in the verified course catalogue. Courses must be added by an administrator using an official course outline or teaching schedule. <a href="/?demo=1&role=tutor">Try the sample tutor catalogue</a>.</p>}
+          {courseSearchPerformed && courseOptions.length === 0 && <p className="setup-note" role="status">No matching courses are available in the verified catalogue yet. Suggest the course below; an administrator will verify its official source before adding it. <a href="/?demo=1&role=tutor">Try the sample tutor catalogue</a>.</p>}
           {courseOptions.map((course) => <form className="course-option" key={course.id} onSubmit={(event) => void requestCourse(event)}><input type="hidden" name="course_id" value={course.id} /><div><b>{course.code} · {course.title}</b><small>{unitPath(course.academic_unit_id, units)}</small></div><button className="button button-outline">Request approval</button></form>)}
+          <button className="button button-outline" type="button" onClick={() => setCourseCatalogueFormOpen((open) => !open)} aria-expanded={courseCatalogueFormOpen} aria-controls="course-catalogue-request-form">{courseCatalogueFormOpen ? "Cancel course suggestion" : "Suggest a missing course"}</button>
+          {courseCatalogueFormOpen && <form id="course-catalogue-request-form" className="mini-form course-search" onSubmit={(event) => void submitCourseCatalogueRequest(event)}>
+            <h3>Suggest a course for the catalogue</h3>
+            <p className="muted">The request is saved to your dashboard immediately. It becomes a shared catalogue course only after an administrator verifies it against an official source.</p>
+            <label>Course code<input name="code" required maxLength={40} placeholder="Course code from your outline" /></label>
+            <label>Course title<input name="title" required maxLength={200} defaultValue={courseSearchTerm} /></label>
+            <label>Academic unit<select name="academic_unit_id" defaultValue=""><option value="">Unassigned</option>{units.filter((item) => item.unit_type === "department").map((item) => <option key={item.id} value={item.id}>{unitPath(item.id, units)}</option>)}</select></label>
+            <label>Official course outline or teaching schedule<input name="source_url" type="url" maxLength={2048} placeholder="Optional HTTPS link for the administrator to verify" /></label>
+            <div className="row-between"><button className="button button-outline" type="button" onClick={() => setCourseCatalogueFormOpen(false)}>Cancel</button><button className="button button-primary" disabled={busy}>{busy ? "Saving…" : "Save course suggestion"}</button></div>
+          </form>}
+          {courseCatalogueRequests.length > 0 && <section className="course-request-list" aria-label="My course catalogue suggestions">
+            <h3>My catalogue suggestions</h3>
+            {courseCatalogueRequests.map((request) => <article className="list-item" key={request.id}>
+              <div className="row-between"><b>{request.code} · {request.title}</b><span className={`status ${request.status}`}>{request.status}</span></div>
+              <small>{unitPath(request.academic_unit_id, units)}</small>
+              {request.status === "approved" && <p className="muted">Added to the shared catalogue. Your tutor teaching request is listed above for separate approval.</p>}
+              {request.admin_note && <p className="muted">Administrator note: {request.admin_note}</p>}
+            </article>)}
+          </section>}
         </section>
       </div>
       <section className="panel"><h2>Teaching previews and resources</h2><p className="muted">Add resources separately for each approved course you teach. Publish one resource per GHS 50 payment: upload an MP4/WebM video, PDF, Office document, text file or image (up to 50 MB), or share a YouTube/HTTPS link. Course links appear only beside matching subjects. Share only materials you own or are authorized to distribute.</p>
@@ -2471,7 +2645,7 @@ export default function App() {
       <section className="panel"><h2>Student feedback</h2>{tutorReviews.length ? tutorReviews.map((item) => <article className="list-item" key={item.id}><div className="row-between"><b>{item.rating} / 5 stars</b><span className={`status ${item.status}`}>{item.status}</span></div><p>{item.comment || "No written comment."}</p><small>{dateLabel(item.created_at)}</small></article>) : <p className="muted">No reviews yet.</p>}</section>
     </main> : profile?.role === "admin" && section === "admin" ? <main id="main-content" tabIndex={-1} className="page">
       <section className="page-heading"><p className="eyebrow">ADMINISTRATION</p><h1>Trust & quality workspace</h1><p className="muted">Review tutor applications, course associations, reports and feedback. Decisions require a reason and are audited.</p></section>
-      <div className="stats-grid"><div className="stat-card"><span>Pending tutors</span><b>{pendingTutors}</b></div><div className="stat-card"><span>Course requests</span><b>{adminTutorCourses.length}</b></div><div className="stat-card"><span>Open reports</span><b>{unresolvedReports}</b></div><div className="stat-card"><span>Total reviews</span><b>{adminReviews.length}</b></div><div className="stat-card"><span>Catalog courses</span><b>{adminCourses.length}</b></div></div>
+      <div className="stats-grid"><div className="stat-card"><span>Pending tutors</span><b>{pendingTutors}</b></div><div className="stat-card"><span>Course requests</span><b>{adminTutorCourses.length + adminCourseCatalogueRequests.length}</b></div><div className="stat-card"><span>Open reports</span><b>{unresolvedReports}</b></div><div className="stat-card"><span>Total reviews</span><b>{adminReviews.length}</b></div><div className="stat-card"><span>Catalog courses</span><b>{adminCourses.length}</b></div></div>
       <div className="admin-tabs" role="group" aria-label="Moderation sections">
         {["applications", "course requests", "reports", "reviews", "courses", "audit"].map((tab) => <button key={tab} type="button" aria-pressed={adminTab === tab} onClick={() => setAdminTab(tab)}>{tab[0].toUpperCase() + tab.slice(1)}</button>)}
       </div>
@@ -2484,7 +2658,19 @@ export default function App() {
         <div className="row-between"><h3>{profileNames[item.tutor_id] || "Tutor"} · {item.courses ? `${item.courses.code} · ${item.courses.title}` : "Course unavailable"}</h3><span className="status pending">pending</span></div>
         <p className="muted">{item.courses ? unitPath(item.courses.academic_unit_id, units) : ""}</p>
         <form className="moderation-form" onSubmit={(event) => { if (!window.confirm("Save this course approval decision?")) event.preventDefault(); else void moderateTutorCourse(event, item.id); }}><label>Decision<select name="status"><option value="approved">Approve</option><option value="rejected">Reject</option></select></label><label>Reason<textarea name="reason" required minLength={4} maxLength={1000} /></label><button className="button button-primary">Save decision</button></form>
-      </article>) : <p className="muted">No course requests need review.</p>}</section>}
+      </article>) : <p className="muted">No tutor-to-course requests need review.</p>}
+        <h2>Proposed catalogue courses</h2><p className="muted">Verify the code, title, academic unit and HTTPS source before approving. Approval adds the course to the shared catalogue and queues the tutor’s separate teaching request.</p>
+        {adminCourseCatalogueRequests.length ? adminCourseCatalogueRequests.map((request) => <article className="moderation-card" key={request.id}>
+          <div className="row-between"><h3>{request.code} · {request.title}</h3><span className="status pending">pending</span></div>
+          <p>Submitted by {profileNames[request.requested_by] || "Tutor"} · {unitPath(request.academic_unit_id, units)}</p>
+          {request.source_url && <p>Suggested source: <a href={request.source_url} target="_blank" rel="noreferrer">{request.source_url}</a></p>}
+          <form className="moderation-form" onSubmit={(event) => { if (!window.confirm("Save this catalogue decision? Approval publishes the course after you provide an official source.")) event.preventDefault(); else void moderateCourseCatalogueRequest(event, request.id); }}>
+            <label>Decision<select name="status" required defaultValue=""><option value="" disabled>Choose a decision</option><option value="approved">Approve and add to catalogue</option><option value="rejected">Reject</option></select></label>
+            <label>Verified official source URL<input name="source_url" type="url" maxLength={2048} defaultValue={request.source_url || ""} placeholder="Required to approve; HTTPS only" /></label>
+            <label>Reason<textarea name="reason" required minLength={4} maxLength={1000} /></label><button className="button button-primary">Save catalogue decision</button>
+          </form>
+        </article>) : <p className="muted">No proposed catalogue courses need review.</p>}
+      </section>}
       {adminTab === "reports" && <section className="panel"><h2>Reports queue</h2>{adminReports.length ? adminReports.map((item) => <article className="moderation-card" key={item.id}>
         <div className="row-between"><h3>{item.category} · {profileNames[item.tutor_id] || "Tutor"}</h3><span className={`status ${item.status}`}>{item.status}</span></div><p>{item.description}</p><small>Received {dateLabel(item.created_at)}</small>
         <form className="moderation-form" onSubmit={(event) => { if (!window.confirm("Save this report status and outcome?")) event.preventDefault(); else void moderateReport(event, item.id); }}><label>Status<select name="status" defaultValue={item.status}><option value="open">Open</option><option value="in review">In review</option><option value="resolved">Resolved</option></select></label><label>Outcome<textarea name="resolution" required maxLength={1000} defaultValue={item.resolution || ""} /></label><label>Moderator reason<textarea name="reason" required minLength={4} maxLength={1000} /></label><button className="button button-primary">Save report decision</button></form>

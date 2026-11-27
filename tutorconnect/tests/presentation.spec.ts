@@ -4,7 +4,7 @@ test("presentation mode shows fictional tutor cards without payment actions and 
   await page.goto("/?demo=1");
 
   await expect(page.getByRole("heading", { name: "Explore sample tutor profiles" })).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "Presentation demo notice" })).toContainText("Profiles and programme entries are fictional.");
+  await expect(page.getByRole("complementary", { name: "Presentation demo notice" })).toContainText("Profiles and course codes are examples, not official UCC records.");
   await expect(page.getByText("Fictional demo profile · no charges")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Contact unlock disabled in demo" })).toHaveCount(3);
   await expect(page.getByRole("button", { name: "Create a real account" })).toBeVisible();
@@ -64,6 +64,8 @@ test("student demo can complete a simulated unlock and receive a receipt", async
   await page.getByRole("button", { name: "Demo unlock contact · GHS 10" }).click();
   await expect(page.getByRole("dialog", { name: "Tutor contact unlock — Tutor Ama" })).toBeVisible();
   await expect(page.getByText("Successful (simulated)").first()).toBeVisible();
+  await expect(page.locator(".demo-receipt")).toContainText("Payment method");
+  await expect(page.locator(".demo-receipt")).toContainText("Simulated demo");
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Contact unlocked", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Email: tutor.demo@example.com" }).first()).toBeVisible();
@@ -89,6 +91,19 @@ test("tutor demo can activate a plan and purchase a resource publishing credit",
   await page.getByRole("button", { name: "Request approval" }).click();
   await expect(page.getByText("Demo course request sent for administrator approval.")).toBeVisible();
   await expect(page.locator(".list-item").filter({ hasText: "BUS204 · Business Management" })).toContainText("pending");
+
+  await page.locator(".course-search input[name='course_query']").fill("Introduction to Data Analytics");
+  await page.getByRole("button", { name: "Search catalogue" }).click();
+  await expect(page.locator(".setup-note[role='status']")).toContainText("No matching courses are available");
+  await page.getByRole("button", { name: "Suggest a missing course" }).click();
+  await page.getByLabel("Course code", { exact: true }).fill("DATA101");
+  await page.getByLabel("Course title", { exact: true }).fill("Introduction to Data Analytics");
+  await page.getByRole("button", { name: "Save course suggestion" }).click();
+  const catalogueSuggestions = page.getByRole("region", { name: "My course catalogue suggestions" });
+  await expect(catalogueSuggestions.getByText("DATA101 · Introduction to Data Analytics")).toBeVisible();
+  await expect(catalogueSuggestions.locator(".status.pending")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("region", { name: "My course catalogue suggestions" }).getByText("DATA101 · Introduction to Data Analytics")).toBeVisible();
 
   await page.getByLabel("Approved course").selectOption("-2");
   await page.getByLabel("Resource type").selectOption("teaching_video");

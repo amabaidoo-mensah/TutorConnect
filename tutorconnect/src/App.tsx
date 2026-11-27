@@ -619,6 +619,8 @@ export default function App() {
   const [tutorResources, setTutorResources] = useState<TutorResource[]>([]);
   const [resourceCredits, setResourceCredits] = useState<string[]>([]);
   const [resourceCreditsError, setResourceCreditsError] = useState<string | null>(null);
+  const [resourceDraftIds, setResourceDraftIds] = useState<string[]>(() => [crypto.randomUUID()]);
+  const [resourceDraftDirty, setResourceDraftDirty] = useState(false);
   const [resourcesByTutor, setResourcesByTutor] = useState<Record<string, TutorResource[]>>({});
   const [tutorReviews, setTutorReviews] = useState<Review[]>([]);
   const [tutorStats, setTutorStats] = useState<TutorStats | null>(null);
@@ -677,6 +679,8 @@ export default function App() {
     setTutorResources([]);
     setResourceCredits([]);
     setResourceCreditsError(null);
+    setResourceDraftIds([crypto.randomUUID()]);
+    setResourceDraftDirty(false);
     setTutorReviews([]);
     setTutorStats(null);
     setAdminTutors([]);
@@ -1633,214 +1637,228 @@ export default function App() {
 
   async function saveTutorResource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (presentationDemo) {
-      if (!profile || profile.role !== "tutor") return;
-      if (tutorProfile?.status !== "approved") {
-        setNotice("Only approved demo tutors can publish resources.");
-        return;
-      }
-      const paymentId = resourceCredits[0];
-      if (!paymentId) {
-        setNotice("Complete the demo GHS 50 resource payment first.");
-        return;
-      }
-      const form = event.currentTarget;
-      const values = new FormData(form);
-      const url = String(values.get("url") || "").trim();
-      const selectedFile = values.get("resource_file");
-      const file = selectedFile instanceof File && selectedFile.size > 0 ? selectedFile : null;
-      if (file && url) {
-        setNotice("Choose either a file upload or an external link, not both.");
-        return;
-      }
-      if (file && file.size > resourceFileSizeLimit) {
-        setNotice("Resource files must be no larger than 50 MB.");
-        return;
-      }
-      if (file && !resourceFileExtensions[file.type]) {
-        setNotice("Choose an MP4/WebM video, PDF, Word/PowerPoint document, text file or JPG/PNG/WebP image.");
-        return;
-      }
-      if (file && String(values.get("resource_type")) === "teaching_video" && !file.type.startsWith("video/")) {
-        setNotice("Teaching video uploads must be MP4 or WebM videos.");
-        return;
-      }
-      if (!file && !url) {
-        setNotice("Choose a file or provide an external HTTPS link.");
-        return;
-      }
-      if (!file && !url.startsWith("https://")) {
-        setNotice("Resource links must use HTTPS.");
-        return;
-      }
-      const resourceType = String(values.get("resource_type")) as TutorResource["resource_type"];
-      if (!file && resourceType === "teaching_video") {
-        try {
-          const host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
-          if (!["youtube.com", "youtu.be", "m.youtube.com", "music.youtube.com"].includes(host)) {
-            setNotice("Teaching videos must be YouTube links.");
-            return;
-          }
-        } catch {
-          setNotice("Enter a valid YouTube video or playlist URL.");
-          return;
-        }
-      }
-      const courseId = Number(values.get("course_id"));
-      if (!courseId) {
-        setNotice("Choose one of your approved courses.");
-        return;
-      }
-      const objectUrl = file ? URL.createObjectURL(file) : null;
-      const resource: TutorResource = {
-        id: Date.now(),
-        tutor_id: profile.id,
-        course_id: courseId,
-        course_code: tutorCourses.find((item) => item.courses?.id === courseId)?.courses?.code ?? null,
-        resource_type: resourceType,
-        title: String(values.get("title")).trim(),
-        url: file ? null : url,
-        storage_path: null,
-        resource_payment_id: paymentId,
-        signed_url: objectUrl,
-        description: String(values.get("description") || "").trim() || null,
-        created_at: new Date().toISOString(),
-      };
-      setTutorResources((current) => [resource, ...current]);
-      let resourcePersistenceWarning = "";
-      if (!file) {
-        try {
-          const stored = readDemoResources();
-          localStorage.setItem("tutorconnect-demo-resources", JSON.stringify([resource, ...stored].slice(0, 100)));
-        } catch {
-          resourcePersistenceWarning = " It will be available only until this tab is closed because browser storage is unavailable.";
-        }
-      }
-      setResourceCredits((current) => {
-        const next = current.filter((credit) => credit !== paymentId);
-        localStorage.setItem("tutorconnect-demo-resource-credits", JSON.stringify(next));
-        return next;
-      });
-      form.reset();
-      setNotice(`Demo resource published successfully. The publishing credit has been used.${resourcePersistenceWarning}`);
-      return;
-    }
-    if (!supabase || !profile || profile.role !== "tutor") return;
+    if (!profile || profile.role !== "tutor") return;
     if (tutorProfile?.status !== "approved") {
-      setNotice("Only approved tutors can publish resources.");
+      setNotice(`Only approved ${presentationDemo ? "demo " : ""}tutors can publish resources.`);
       return;
     }
-    const paymentId = resourceCredits[0];
-    if (!paymentId) {
-      setNotice("Pay GHS 50 to receive one resource publishing credit.");
+    if (!presentationDemo && !supabase) {
+      setNotice("Resource publishing is unavailable. Please try again later.");
+      return;
+    }
+    if (resourceDraftIds.length < 1 || resourceDraftIds.length > 5) {
+      setNotice("A publish batch must contain between one and five resources.");
+      return;
+    }
+    if (resourceCredits.length < resourceDraftIds.length) {
+      setNotice(`This batch needs ${resourceDraftIds.length} publishing credits. Buy one GHS 50 credit for each resource before publishing.`);
       return;
     }
 
     const form = event.currentTarget;
     const values = new FormData(form);
-    const url = String(values.get("url") || "").trim();
-    const selectedFile = values.get("resource_file");
-    const file = selectedFile instanceof File && selectedFile.size > 0 ? selectedFile : null;
-    if (file && url) {
-      setNotice("Choose either a file upload or an external link, not both.");
-      return;
-    }
-    if (!file && !url) {
-      setNotice("Choose a file or provide an external HTTPS link.");
-      return;
-    }
-    let storagePath: string | null = null;
-    if (file) {
-      if (file.size > resourceFileSizeLimit) {
-        setNotice("Resource files must be no larger than 50 MB.");
+    const approvedCourseIds = new Set(
+      tutorCourses.flatMap((item) => item.status === "approved" && item.courses ? [item.courses.id] : []),
+    );
+    const drafts: Array<{
+      course_id: number;
+      resource_type: TutorResource["resource_type"];
+      title: string;
+      file: File | null;
+      url: string | null;
+      storage_path: string | null;
+      resource_payment_id: string;
+      description: string | null;
+    }> = [];
+    for (const [index, draftId] of resourceDraftIds.entries()) {
+      const resourceType = String(values.get(`resource_type_${draftId}`) || "");
+      if (!["teaching_video", "course_resource", "past_questions"].includes(resourceType)) {
+        setNotice(`Choose a valid resource type for item ${index + 1}.`);
         return;
       }
-      const extension = resourceFileExtensions[file.type];
-      if (!extension) {
-        setNotice("Choose an MP4/WebM video, PDF, Word/PowerPoint document, text file or JPG/PNG/WebP image.");
+      const courseId = Number(values.get(`course_id_${draftId}`));
+      if (!Number.isInteger(courseId) || !approvedCourseIds.has(courseId)) {
+        setNotice(`Choose one of your approved courses for item ${index + 1}.`);
         return;
       }
-      if (String(values.get("resource_type")) === "teaching_video" && !file.type.startsWith("video/")) {
-        setNotice("Teaching video uploads must be MP4 or WebM videos.");
+      const title = String(values.get(`title_${draftId}`) || "").trim();
+      if (!title) {
+        setNotice(`Enter a title for item ${index + 1}.`);
         return;
       }
-      storagePath = `${profile.id}/${paymentId}/resource.${extension}`;
-    } else if (!url.startsWith("https://")) {
-      setNotice("Resource links must use HTTPS.");
-      return;
-    }
-    if (!file && String(values.get("resource_type")) === "teaching_video") {
-      let videoUrl: URL;
-      try {
-        videoUrl = new URL(url);
-      } catch {
-        setNotice("Enter a valid YouTube video or playlist URL.");
+      const selectedFile = values.get(`resource_file_${draftId}`);
+      const file = selectedFile instanceof File && selectedFile.size > 0 ? selectedFile : null;
+      const url = String(values.get(`url_${draftId}`) || "").trim();
+      if (file && url) {
+        setNotice(`Choose either a file or an external link for item ${index + 1}, not both.`);
         return;
       }
-      const host = videoUrl.hostname.toLowerCase().replace(/^www\./, "");
-      if (!["youtube.com", "youtu.be", "m.youtube.com", "music.youtube.com"].includes(host)) {
-        setNotice("Teaching videos must be YouTube links.");
+      if (!file && !url) {
+        setNotice(`Choose a file or provide an external HTTPS link for item ${index + 1}.`);
         return;
       }
+      let storagePath: string | null = null;
+      if (file) {
+        if (file.size > resourceFileSizeLimit) {
+          setNotice(`The file for item ${index + 1} must be no larger than 50 MB.`);
+          return;
+        }
+        const extension = resourceFileExtensions[file.type];
+        if (!extension) {
+          setNotice(`Choose an MP4/WebM video, PDF, Word/PowerPoint document, text file or JPG/PNG/WebP image for item ${index + 1}.`);
+          return;
+        }
+        if (resourceType === "teaching_video" && !file.type.startsWith("video/")) {
+          setNotice(`The file for teaching video item ${index + 1} must be an MP4 or WebM video.`);
+          return;
+        }
+        storagePath = presentationDemo
+          ? null
+          : `${profile.id}/${resourceCredits[index]}/resource.${extension}`;
+      } else {
+        let parsedUrl: URL;
+        try {
+          parsedUrl = new URL(url);
+        } catch {
+          setNotice(`Enter a valid HTTPS link for item ${index + 1}.`);
+          return;
+        }
+        if (parsedUrl.protocol !== "https:") {
+          setNotice(`Resource links must use HTTPS (item ${index + 1}).`);
+          return;
+        }
+        if (resourceType === "teaching_video") {
+          const host = parsedUrl.hostname.toLowerCase().replace(/^www\./, "");
+          if (!["youtube.com", "youtu.be", "m.youtube.com", "music.youtube.com"].includes(host)) {
+            setNotice(`Teaching video item ${index + 1} must use a YouTube link.`);
+            return;
+          }
+        }
+      }
+      drafts.push({
+        course_id: courseId,
+        resource_type: resourceType as TutorResource["resource_type"],
+        title,
+        file,
+        url: file ? null : url,
+        storage_path: storagePath,
+        resource_payment_id: resourceCredits[index],
+        description: String(values.get(`description_${draftId}`) || "").trim() || null,
+      });
     }
 
-    const courseId = String(values.get("course_id") || "");
-    if (!courseId) {
-      setNotice("Choose one of your approved courses.");
+    if (presentationDemo) {
+      const createdAt = new Date().toISOString();
+      const resources: TutorResource[] = drafts.map((draft, index) => {
+        const fileUrl = draft.file ? URL.createObjectURL(draft.file) : null;
+        return {
+          id: Date.now() + index,
+          tutor_id: profile.id,
+          course_id: draft.course_id,
+          course_code: tutorCourses.find((item) => item.courses?.id === draft.course_id)?.courses?.code ?? null,
+          resource_type: draft.resource_type,
+          title: draft.title,
+          url: draft.url,
+          storage_path: null,
+          resource_payment_id: draft.resource_payment_id,
+          signed_url: fileUrl,
+          description: draft.description,
+          created_at: createdAt,
+        };
+      });
+      setTutorResources((current) => [...resources, ...current]);
+      const remainingCredits = resourceCredits.slice(drafts.length);
+      let persistenceWarning = "";
+      try {
+        const stored = readDemoResources();
+        const linkedResources = resources.filter((resource) => resource.url);
+        localStorage.setItem("tutorconnect-demo-resources", JSON.stringify([...linkedResources, ...stored].slice(0, 100)));
+        localStorage.setItem("tutorconnect-demo-resource-credits", JSON.stringify(remainingCredits));
+      } catch {
+        persistenceWarning = " The demo batch is available in this tab, but browser storage could not save it for later.";
+      }
+      setResourceCredits(remainingCredits);
+      form.reset();
+      setResourceDraftIds([crypto.randomUUID()]);
+      setResourceDraftDirty(false);
+      setNotice(`Demo batch published: ${resources.length} resources. ${resources.length} GHS 50 credits used.${persistenceWarning}`);
       return;
     }
+
+    const client = supabase;
+    if (!client) return;
+    const uploadedPaths: string[] = [];
+    let rowsInserted = false;
+    const cleanupUploadedFiles = async () => {
+      if (!uploadedPaths.length) return null;
+      try {
+        const { error } = await client.storage.from("tutor-resources").remove(uploadedPaths);
+        return error?.message ?? null;
+      } catch (error) {
+        return error instanceof Error ? error.message : "Unknown storage cleanup error.";
+      }
+    };
 
     setBusy(true);
     try {
-      if (file && storagePath) {
-        const { error: uploadError } = await supabase.storage.from("tutor-resources").upload(storagePath, file, {
-          contentType: file.type,
+      for (const draft of drafts) {
+        if (!draft.file || !draft.storage_path) continue;
+        const { error: uploadError } = await client.storage.from("tutor-resources").upload(draft.storage_path, draft.file, {
+          contentType: draft.file.type,
           upsert: false,
         });
         if (uploadError) {
-          setNotice(uploadError.message);
+          const cleanupError = await cleanupUploadedFiles();
+          setNotice(cleanupError
+            ? `${uploadError.message} Earlier batch uploads could not be cleaned up: ${cleanupError}`
+            : uploadError.message);
           return;
         }
+        uploadedPaths.push(draft.storage_path);
       }
 
-      const { data, error } = await supabase.from("tutor_resources").insert({
+      const { data, error } = await client.from("tutor_resources").insert(drafts.map((draft) => ({
         tutor_id: profile.id,
-        course_id: Number(courseId),
-        resource_type: String(values.get("resource_type")),
-        title: String(values.get("title")).trim(),
-        url: file ? null : url,
-        storage_path: storagePath,
-        resource_payment_id: paymentId,
-        description: String(values.get("description") || "").trim() || null,
-      }).select("id,tutor_id,course_id,resource_type,title,url,storage_path,resource_payment_id,description,created_at").single();
+        course_id: draft.course_id,
+        resource_type: draft.resource_type,
+        title: draft.title,
+        url: draft.url,
+        storage_path: draft.storage_path,
+        resource_payment_id: draft.resource_payment_id,
+        description: draft.description,
+      }))).select("id,tutor_id,course_id,resource_type,title,url,storage_path,resource_payment_id,description,created_at");
 
       if (error) {
-        if (storagePath) {
-          const { error: cleanupError } = await supabase.storage.from("tutor-resources").remove([storagePath]);
-          setNotice(cleanupError
-            ? `${error.message} Uploaded file cleanup failed: ${cleanupError.message}`
-            : error.message);
-        } else {
-          setNotice(error.message);
-        }
+        const cleanupError = await cleanupUploadedFiles();
+        setNotice(cleanupError
+          ? `${error.message} Uploaded batch files could not be cleaned up: ${cleanupError}`
+          : error.message);
         return;
       }
 
-      let resourceWithSignedUrl = data;
-      let publicationNotice = "Resource published. Your paid credit has been used.";
+      rowsInserted = true;
+      let resourcesWithSignedUrl: TutorResource[] = data ?? [];
+      let publicationNotice = `Published ${resourcesWithSignedUrl.length} resources. ${resourcesWithSignedUrl.length} paid credits used.`;
       try {
-        [resourceWithSignedUrl] = await signTutorResourceFiles([data]);
+        resourcesWithSignedUrl = await signTutorResourceFiles(resourcesWithSignedUrl);
       } catch (error) {
         publicationNotice = error instanceof Error
-          ? `Resource published, but its file link could not be loaded: ${error.message}`
-          : "Resource published, but its file link could not be loaded.";
+          ? `Batch published, but one or more file links could not be loaded: ${error.message}`
+          : "Batch published, but one or more file links could not be loaded.";
       }
-      setTutorResources((current) => [resourceWithSignedUrl, ...current]);
-      setResourceCredits((current) => current.filter((credit) => credit !== paymentId));
+      setTutorResources((current) => [...resourcesWithSignedUrl, ...current]);
+      const usedPaymentIds = new Set(drafts.map((draft) => draft.resource_payment_id));
+      setResourceCredits((current) => current.filter((credit) => !usedPaymentIds.has(credit)));
       form.reset();
+      setResourceDraftIds([crypto.randomUUID()]);
+      setResourceDraftDirty(false);
       setNotice(publicationNotice);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not publish the resource.");
+      const cleanupError = rowsInserted ? null : await cleanupUploadedFiles();
+      setNotice([
+        error instanceof Error ? error.message : "Could not publish the resource batch.",
+        cleanupError ? `Uploaded files could not be cleaned up: ${cleanupError}` : "",
+      ].filter(Boolean).join(" "));
     } finally {
       setBusy(false);
     }
@@ -2620,23 +2638,37 @@ export default function App() {
           </section>}
         </section>
       </div>
-      <section className="panel"><h2>Teaching previews and resources</h2><p className="muted">Add resources separately for each approved course you teach. Publish one resource per GHS 50 payment: upload an MP4/WebM video, PDF, Office document, text file or image (up to 50 MB), or share a YouTube/HTTPS link. Course links appear only beside matching subjects. Share only materials you own or are authorized to distribute.</p>
+      <section className="panel"><h2>Teaching previews and resources</h2><p className="muted">Prepare and publish up to five resources in one batch, choosing an approved course for each item. Each file or external link uses one GHS 50 publishing credit. Upload an MP4/WebM video, PDF, Office document, text file or image (up to 50 MB), or share a YouTube/HTTPS link. Course links appear only beside matching subjects. Share only materials you own or are authorized to distribute.</p>
         {tutorProfile?.status !== "approved" ? <p className="setup-note">Your tutor profile must be approved before you can pay for or publish resources.</p>
           : resourceCreditsError ? <div className="empty-state" role="alert"><h3>Could not check your resource credits</h3><p>{resourceCreditsError}</p><button className="button button-outline" type="button" onClick={() => void loadTutorDashboard(profile.id)}>Try again</button></div>
-            : resourceCredits.length === 0 ? <div className="resource-credit-box"><p>You have no unused resource credits. Pay GHS 50 to publish one file or link.</p><button className="button button-primary" type="button" disabled={busy} onClick={() => void startResourceCheckout()}>{busy ? "Opening secure checkout…" : "Pay GHS 50 for one resource"}</button></div>
-            : <form className="resource-form" onSubmit={(event) => void saveTutorResource(event)}>
-              <p className="resource-credit-note">Unused publishing credits: {resourceCredits.length}. Publishing a resource uses one credit.</p>
-              <label>Resource type<select name="resource_type"><option value="teaching_video">Teaching video</option><option value="course_resource">Course resource</option><option value="past_questions">Past questions</option></select></label>
-              <label>Approved course<select name="course_id" required>
-                <option value="">Choose one of your approved courses</option>
-                {tutorCourses.filter((item) => item.status === "approved").map((item) => <option key={item.id} value={item.courses?.id ?? ""}>{item.courses ? `${item.courses.code} · ${item.courses.title}` : "Course unavailable"}</option>)}
-              </select></label>
-              <label>Title<input name="title" required maxLength={160} /></label>
-              <label>Upload a file<input name="resource_file" type="file" accept="video/mp4,video/webm,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,image/jpeg,image/png,image/webp" /></label>
-              <label>Or external HTTPS link<input name="url" type="url" maxLength={2048} placeholder="https://…" /></label>
-              <label>Source or description<textarea name="description" rows={2} maxLength={300} placeholder="Who created it? Is it an open or authorized resource?" /></label>
-              <button className="button button-outline" disabled={busy}>{busy ? "Publishing…" : "Publish resource"}</button>
-            </form>}
+            : <>
+              <div className="resource-credit-box">
+                <p>Unused credits: {resourceCredits.length}. Each resource costs GHS 50; buy enough credits before preparing a batch of up to five items.</p>
+                <button className="button button-primary" type="button" disabled={busy || resourceDraftDirty} onClick={() => void startResourceCheckout()}>{busy ? "Opening secure checkout…" : "Buy one GHS 50 resource credit"}</button>
+                {resourceDraftDirty && <small>Clear this draft before checkout so browser-held files are not lost.</small>}
+              </div>
+              {resourceCredits.length > 0 && <form className="resource-form" aria-label="Publish resource batch" onChange={() => setResourceDraftDirty(true)} onSubmit={(event) => void saveTutorResource(event)} onReset={() => { setResourceDraftIds([crypto.randomUUID()]); setResourceDraftDirty(false); }}>
+                <p className="resource-credit-note">Prepare up to {Math.min(5, resourceCredits.length)} item{Math.min(5, resourceCredits.length) === 1 ? "" : "s"} in this batch. Each item uses one paid credit; files and external links can be mixed.</p>
+                {resourceDraftIds.map((draftId, index) => <fieldset className="resource-draft" key={draftId}>
+                  <legend>Resource {index + 1}</legend>
+                  {resourceDraftIds.length > 1 && <button className="button button-outline resource-remove-button" type="button" aria-label={`Remove resource ${index + 1}`} onClick={() => setResourceDraftIds((current) => current.filter((id) => id !== draftId))}>Remove</button>}
+                  <label>Resource type<select name={`resource_type_${draftId}`} defaultValue="course_resource"><option value="teaching_video">Teaching video</option><option value="course_resource">Course resource</option><option value="past_questions">Past questions</option></select></label>
+                  <label>Approved course<select name={`course_id_${draftId}`} required defaultValue="">
+                    <option value="">Choose one of your approved courses</option>
+                    {tutorCourses.filter((item) => item.status === "approved").map((item) => <option key={item.id} value={item.courses?.id ?? ""}>{item.courses ? `${item.courses.code} · ${item.courses.title}` : "Course unavailable"}</option>)}
+                  </select></label>
+                  <label>Title<input name={`title_${draftId}`} required maxLength={160} /></label>
+                  <label>Upload a file<input name={`resource_file_${draftId}`} type="file" accept="video/mp4,video/webm,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,image/jpeg,image/png,image/webp" /></label>
+                  <label>Or external HTTPS link<input name={`url_${draftId}`} type="url" maxLength={2048} placeholder="https://…" /></label>
+                  <label>Source or description<textarea name={`description_${draftId}`} rows={2} maxLength={300} placeholder="Who created it? Is it an open or authorized resource?" /></label>
+                </fieldset>)}
+                <div className="resource-batch-actions">
+                  <button className="button button-outline" type="button" disabled={resourceDraftIds.length >= 5 || resourceDraftIds.length >= resourceCredits.length} onClick={() => setResourceDraftIds((current) => [...current, crypto.randomUUID()])}>Add another resource</button>
+                  <button className="button button-outline" type="reset" disabled={busy || (!resourceDraftDirty && resourceDraftIds.length === 1)}>Clear batch</button>
+                  <button className="button button-primary" disabled={busy}>{busy ? "Publishing batch…" : `Publish ${resourceDraftIds.length} resource${resourceDraftIds.length === 1 ? "" : "s"}`}</button>
+                </div>
+              </form>}
+            </>}
         {tutorResources.length ? tutorResources.map((resource) => {
           const course = tutorCourses.find((item) => item.courses?.id === resource.course_id)?.courses;
           return <article className="resource-row" key={resource.id}><div><span className="resource-type">{resourceLabel(resource.resource_type)}</span>{course && <small className="resource-course">{course.code} · {course.title}</small>}<a href={resource.signed_url || resource.url || undefined} target="_blank" rel="noreferrer"><b>{resource.title}</b></a>{resource.description && <p className="muted">{resource.description}</p>}</div><button className="button button-outline" type="button" disabled={busy} onClick={() => void removeTutorResource(resource.id)}>Remove</button></article>;

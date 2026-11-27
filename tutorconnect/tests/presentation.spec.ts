@@ -80,10 +80,10 @@ test("tutor demo can activate a plan and purchase a resource publishing credit",
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Active", { exact: true }).first()).toBeVisible();
 
-  await page.getByRole("button", { name: "Pay GHS 50 for one resource" }).click();
+  await page.getByRole("button", { name: "Buy one GHS 50 resource credit" }).click();
   await expect(page.getByRole("dialog", { name: "Tutor resource publishing credit" })).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText(/Unused publishing credits: 1/)).toBeVisible();
+  await expect(page.getByText(/Unused credits: 1/)).toBeVisible();
 
   await page.locator(".course-search input[name='course_query']").fill("BUS");
   await page.getByRole("button", { name: "Search catalogue" }).click();
@@ -105,15 +105,51 @@ test("tutor demo can activate a plan and purchase a resource publishing credit",
   await page.reload();
   await expect(page.getByRole("region", { name: "My course catalogue suggestions" }).getByText("DATA101 · Introduction to Data Analytics")).toBeVisible();
 
-  await page.getByLabel("Approved course").selectOption("-2");
-  await page.getByLabel("Resource type").selectOption("teaching_video");
-  await page.getByLabel("Title", { exact: true }).fill("Demo teaching video");
-  await page.getByLabel("Or external HTTPS link").fill("https://youtu.be/2WtPyqwTLKM");
-  await page.getByRole("button", { name: "Publish resource" }).click();
-  await expect(page.getByRole("link", { name: "Demo teaching video" })).toBeVisible();
+  await page.getByRole("button", { name: "Buy one GHS 50 resource credit" }).click();
+  await expect(page.getByRole("dialog", { name: "Tutor resource publishing credit" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText(/Unused credits: 2/)).toBeVisible();
+  const resourceBatch = page.getByRole("form", { name: "Publish resource batch" });
+  const resourceDrafts = resourceBatch.locator(".resource-draft");
+  await expect(resourceDrafts).toHaveCount(1);
+  await page.getByRole("button", { name: "Add another resource" }).click();
+  await expect(resourceDrafts).toHaveCount(2);
+  const fileResource = resourceDrafts.nth(0);
+  await fileResource.getByLabel("Resource type").selectOption("course_resource");
+  await fileResource.getByLabel("Approved course").selectOption("-2");
+  await fileResource.getByLabel("Title").fill("Demo study notes");
+  await fileResource.getByLabel("Upload a file").setInputFiles({
+    name: "study-notes.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-demo resource"),
+  });
+  const linkResource = resourceDrafts.nth(1);
+  await linkResource.getByLabel("Resource type").selectOption("teaching_video");
+  await linkResource.getByLabel("Approved course").selectOption("-2");
+  await linkResource.getByLabel("Title").fill("Demo teaching video");
+  await linkResource.getByLabel("Or external HTTPS link").fill("https://youtu.be/2WtPyqwTLKM");
+  await resourceBatch.getByRole("button", { name: "Publish 2 resources" }).click();
+  await expect(page.getByRole("status")).toContainText("Demo batch published: 2 resources");
+  await expect(page.locator(".resource-row").filter({ hasText: "Demo study notes" })).toBeVisible();
+  await expect(page.locator(".resource-row").filter({ hasText: "Demo teaching video" })).toBeVisible();
 
   await page.goto("/?demo=1&role=student");
   await page.getByLabel("Course code or title").fill("CS101");
   await page.getByRole("button", { name: "Search tutors" }).click();
   await expect(page.getByRole("link", { name: "Demo teaching video" })).toBeVisible();
+});
+
+test("tutor resource batches allow at most five items", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("tutorconnect-demo-resource-credits", JSON.stringify(["credit-1", "credit-2", "credit-3", "credit-4", "credit-5", "credit-6"]));
+  });
+  await page.goto("/?demo=1&role=tutor");
+  const resourceBatch = page.getByRole("form", { name: "Publish resource batch" });
+  const resourceDrafts = resourceBatch.locator(".resource-draft");
+  await expect(resourceDrafts).toHaveCount(1);
+  for (let count = 1; count < 5; count += 1) {
+    await page.getByRole("button", { name: "Add another resource" }).click();
+  }
+  await expect(resourceDrafts).toHaveCount(5);
+  await expect(page.getByRole("button", { name: "Add another resource" })).toBeDisabled();
 });

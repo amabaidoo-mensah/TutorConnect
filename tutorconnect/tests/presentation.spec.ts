@@ -23,6 +23,7 @@ test("presentation mode shows fictional tutor cards without payment actions and 
   await page.goto("/?demo=1");
 
   await expect(page.getByRole("heading", { name: "Explore sample tutor profiles" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "UCC programmes" })).toHaveCount(0);
   await expect(page.getByRole("complementary", { name: "Presentation demo notice" })).toContainText("Profiles and course codes are examples, not official UCC records.");
   await expect(page.getByText("Fictional demo profile · no charges")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Contact unlock disabled in demo" })).toHaveCount(3);
@@ -69,7 +70,7 @@ test("one tutor profile can show multiple subjects with resources matched to eac
   await expect(tutorCard.getByRole("link", { name: /CS50P/ })).toBeVisible();
 });
 
-test("presentation course and programme pages use clearly identified sample content", async ({ page }) => {
+test("presentation course resources are clearly identified as examples", async ({ page }) => {
   await page.goto("/?demo=1");
 
   await page.getByRole("button", { name: "Courses & resources" }).click();
@@ -77,11 +78,6 @@ test("presentation course and programme pages use clearly identified sample cont
   await expect(page.getByRole("heading", { name: "Linear Algebra I (demo course)" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Business and Management", exact: true })).toBeVisible();
   await expect(page.getByText(/none are represented as UCC course records/i)).toBeVisible();
-
-  await page.getByRole("button", { name: "UCC programmes" }).click();
-  await expect(page.getByRole("heading", { name: "Example UCC programmes" })).toBeVisible();
-  await expect(page.getByText("Example BSc Computer Science")).toBeVisible();
-  await expect(page.getByText("Example only").first()).toBeVisible();
 });
 
 test("student demo can complete a simulated unlock and receive a receipt", async ({ page }) => {
@@ -105,6 +101,7 @@ test("student demo can complete a simulated unlock and receive a receipt", async
 test("tutor demo can activate a plan and purchase a resource publishing credit", async ({ page }) => {
   await page.goto("/?demo=1&role=tutor");
   await expect(page.getByRole("heading", { name: /Your teaching dashboard/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "UCC programmes" })).toHaveCount(0);
   await expect(page.getByRole("img", { name: "TutorConnect verified tutor" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Choose monthly" }).click();

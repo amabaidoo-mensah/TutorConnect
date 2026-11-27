@@ -4,7 +4,7 @@ import { isStudentVerificationActive, isTutorVerificationActive } from "./accoun
 import "./App.css";
 
 type Role = "student" | "tutor" | "admin";
-type Section = "discover" | "student" | "tutor" | "admin" | "profile" | "programmes" | "resources";
+type Section = "discover" | "student" | "tutor" | "admin" | "profile" | "resources";
 type Institution = { id: number; name: string };
 type AcademicUnit = { id: number; name: string; unit_type: string; parent_id: number | null };
 type Profile = {
@@ -62,7 +62,6 @@ type Review = { id: number; tutor_id: string; student_id: string; rating: number
 type Report = { id: number; tutor_id: string; reporter_id: string; category: string; description: string; status: string; resolution: string | null; created_at: string };
 type TutorProfile = { id: string; bio: string | null; qualifications: string | null; rate: number | null; delivery: string | null; availability: string | null; status: string; premium_until: string | null; views: number };
 type Course = { id: number; institution_id: number; code: string; title: string; academic_unit_id: number | null; source_url: string | null };
-type AcademicProgramme = { id: number; programme_title: string; award: string; level: string; catalogue_unit: string; college_name: string | null; school_name: string | null; source_url: string };
 type TutorCourse = { id: number; status: string; courses: Course | null };
 type CourseCatalogueRequest = {
   id: number;
@@ -592,11 +591,6 @@ const curatedSubjectResources: SubjectLearningResourceGroup[] = [
     ],
   },
 ];
-const presentationProgrammes: AcademicProgramme[] = [
-  { id: -1, programme_title: "Example BSc Computer Science", award: "Bachelor's degree", level: "Undergraduate", catalogue_unit: "Computer Science and Information Technology", college_name: "College of Science and Technology", school_name: "School of Physical Sciences", source_url: "" },
-  { id: -2, programme_title: "Example BSc Business Administration", award: "Bachelor's degree", level: "Undergraduate", catalogue_unit: "Management Studies", college_name: "College of Science and Technology", school_name: "School of Business", source_url: "" },
-  { id: -3, programme_title: "Example MSc Information Technology", award: "Master's degree", level: "Postgraduate", catalogue_unit: "Computer Science and Information Technology", college_name: "College of Science and Technology", school_name: "School of Physical Sciences", source_url: "" },
-];
 const presentationDemoCourses: Course[] = [
   { id: -2, institution_id: -1, code: "CS101", title: "Introduction to Computing", academic_unit_id: -3, source_url: null },
   { id: -3, institution_id: -1, code: "CS102", title: "Programming Fundamentals", academic_unit_id: -3, source_url: null },
@@ -668,17 +662,11 @@ export default function App() {
   const [adminReviews, setAdminReviews] = useState<Review[]>([]);
   const [adminCourses, setAdminCourses] = useState<Course[]>([]);
   const [adminActions, setAdminActions] = useState<AdminAction[]>([]);
-  const [academicProgrammes, setAcademicProgrammes] = useState<AcademicProgramme[]>(presentationDemo ? presentationProgrammes : []);
   const [courseResourceCourses, setCourseResourceCourses] = useState<Array<Course & { resources: CourseLearningResource[] }>>(presentationDemo ? presentationResources : []);
   const [courseResourcesLoading, setCourseResourcesLoading] = useState(false);
   const [courseResourcesError, setCourseResourcesError] = useState<string | null>(null);
   const [courseResourceQuery, setCourseResourceQuery] = useState("");
   const [courseResourceReload, setCourseResourceReload] = useState(0);
-  const [programmesLoading, setProgrammesLoading] = useState(false);
-  const [programmesError, setProgrammesError] = useState<string | null>(null);
-  const [programmeQuery, setProgrammeQuery] = useState("");
-  const [programmeLevel, setProgrammeLevel] = useState("");
-  const [programmeReload, setProgrammeReload] = useState(0);
   const [hasSearched, setHasSearched] = useState(presentationDemo);
   const [section, setSection] = useState<Section>("discover");
   const [adminTab, setAdminTab] = useState("applications");
@@ -1113,38 +1101,6 @@ export default function App() {
 
     return () => { active = false; };
   }, [section, institutionId, courseResourceReload]);
-
-  useEffect(() => {
-    if (presentationDemo) {
-      setAcademicProgrammes(presentationProgrammes);
-      setProgrammesError(null);
-      setProgrammesLoading(false);
-      return;
-    }
-    if (!supabase || institutionId === "") {
-      setAcademicProgrammes([]);
-      return;
-    }
-    let active = true;
-    setProgrammesLoading(true);
-    void supabase.from("academic_programmes")
-      .select("id,programme_title,award,level,catalogue_unit,college_name,school_name,source_url")
-      .eq("institution_id", institutionId)
-      .eq("active", true)
-      .order("programme_title")
-      .then(({ data, error }) => {
-        if (!active) return;
-        setProgrammesLoading(false);
-        if (error) {
-          setProgrammesError(error.message);
-          setNotice(error.message);
-          return;
-        }
-        setProgrammesError(null);
-        setAcademicProgrammes(data ?? []);
-      });
-    return () => { active = false; };
-  }, [institutionId, programmeReload]);
 
   useEffect(() => {
     if (!profile) return;
@@ -2471,28 +2427,6 @@ export default function App() {
     };
   }, [user?.id, presentationDemo, section, visibleTutorIds]);
 
-  const filteredProgrammes = useMemo(() => {
-    const search = programmeQuery.trim().toLowerCase();
-    return academicProgrammes.filter((programme) =>
-      (!programmeLevel || programme.level === programmeLevel)
-      && (!search || [programme.programme_title, programme.award, programme.catalogue_unit, programme.college_name, programme.school_name]
-        .some((value) => value?.toLowerCase().includes(search))),
-    );
-  }, [academicProgrammes, programmeLevel, programmeQuery]);
-
-  const groupedProgrammes = useMemo(() => {
-    const groups = new Map<string, AcademicProgramme[]>();
-    for (const programme of filteredProgrammes) {
-      const path = [programme.college_name, programme.school_name, programme.catalogue_unit]
-        .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
-        .join(" / ") || `College/school not listed / ${programme.catalogue_unit}`;
-      groups.set(path, [...(groups.get(path) ?? []), programme]);
-    }
-    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [filteredProgrammes]);
-
-  const programmeLevels = useMemo(() => [...new Set(academicProgrammes.map((item) => item.level))].sort(), [academicProgrammes]);
-
   const filteredCourseResourceCourses = useMemo(() => {
     const search = courseResourceQuery.trim().toLowerCase();
     return courseResourceCourses.filter((course) =>
@@ -2524,7 +2458,6 @@ export default function App() {
       <nav aria-label="Main navigation">
         {!presentationDemo && <a className="nav-link" href="/?demo=1">Presentation demo</a>}
         <button className={section === "resources" ? "nav-link active" : "nav-link"} aria-current={section === "resources" ? "page" : undefined} onClick={() => navigate("resources")}>Courses & resources</button>
-        {(user || (presentationDemo && !demoAuthRequested)) && <button className={section === "programmes" ? "nav-link active" : "nav-link"} aria-current={section === "programmes" ? "page" : undefined} onClick={() => navigate("programmes")}>UCC programmes</button>}
         {profile?.role === "student" && <>
           <button className={section === "discover" ? "nav-link active" : "nav-link"} aria-current={section === "discover" ? "page" : undefined} onClick={() => navigate("discover")}>Find tutors</button>
           <button className={section === "student" ? "nav-link active" : "nav-link"} aria-current={section === "student" ? "page" : undefined} onClick={() => navigate("student")}>My activity</button>
@@ -2581,7 +2514,7 @@ export default function App() {
       </section>
     </main> : section === "resources" ? <main id="main-content" tabIndex={-1} className="page">
       <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "OPEN LEARNING LIBRARY"}</p><h1>Courses & learning resources</h1><p className="muted">{presentationDemo ? "Explore curated subject resources and sample course-matched materials." : "Explore reputable public study materials by subject, plus course-specific resources and tutor-shared links."}</p></section>
-      <div className="programme-controls resource-library-controls">
+      <div className="resource-library-controls">
         <label>Institution<select value={institutionId} onChange={(event) => { setInstitutionId(Number(event.target.value)); setUnitId(""); }}>
           <option value="">Choose institution</option>{institutions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select></label>
@@ -2624,30 +2557,6 @@ export default function App() {
           </section>
             : courseResourceQuery.trim() ? <div className="empty-state"><h2>No course resources match</h2><p>Try a different code, title or academic unit.</p></div>
             : <div className="empty-state"><h2>No verified course resources yet</h2><p>Course-specific items will appear here after an administrator links them to verified courses. Tutors can also share separate resources for each approved course on their profiles.</p></div>}
-    </main> : section === "programmes" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">{presentationDemo ? "PRESENTATION EXAMPLES" : "OFFICIAL ADMISSIONS LISTING"}</p><h1>{presentationDemo ? "Example UCC programmes" : "Explore UCC programmes"}</h1><p className="muted">{presentationDemo ? "Fictional entries demonstrate how programme information will be grouped and filtered." : "Browse degree and postgraduate programmes by the academic unit shown in UCC’s admissions catalogue."}</p></section>
-      <div className="programme-controls">
-        <label>Search programmes<input value={programmeQuery} onChange={(event) => setProgrammeQuery(event.target.value)} placeholder="Programme, award, department or college" /></label>
-        <label>Study level<select value={programmeLevel} onChange={(event) => setProgrammeLevel(event.target.value)}><option value="">All levels</option>{programmeLevels.map((level) => <option key={level}>{level}</option>)}</select></label>
-        <a className="button button-outline" href="https://admissions.ucc.edu.gh/catalogue" target="_blank" rel="noreferrer">Official UCC catalogue</a>
-      </div>
-      <p className="source-note">{presentationDemo
-        ? "All entries on this page are fictional presentation examples, not current UCC programmes."
-        : "These are admissions programmes, not semester course units or course codes. Programme names link to UCC Admissions. College and school labels are shown only where the official listing provides them."}</p>
-      <p className="muted programme-count">{programmesLoading ? "Loading UCC programmes…" : programmesError ? "The catalogue could not be loaded." : `Showing ${filteredProgrammes.length} of ${academicProgrammes.length} programmes`}</p>
-      {!supabase && !presentationDemo ? <div className="empty-state"><h2>Connect Supabase to load this catalogue</h2><p>Or browse the official <a href="https://admissions.ucc.edu.gh/catalogue" target="_blank" rel="noreferrer">UCC Admissions catalogue</a>.</p></div>
-        : programmesLoading ? <div className="empty-state"><h2>Loading programmes</h2><p>Fetching the verified UCC Admissions listing.</p></div>
-          : programmesError ? <div className="empty-state" role="alert"><h2>Could not load UCC programmes</h2><p>{programmesError}</p><button className="button button-outline" onClick={() => setProgrammeReload((value) => value + 1)}>Try again</button><p>Or browse the <a href="https://admissions.ucc.edu.gh/catalogue" target="_blank" rel="noreferrer">official UCC catalogue</a>.</p></div>
-            : groupedProgrammes.length ? <section className="programme-groups" aria-label="UCC programmes grouped by academic unit">
-            {groupedProgrammes.map(([group, items], index) => <details className="course-group programme-group" key={group} open={presentationDemo || index === 0}>
-              <summary>{group}<span>{items.length}</span></summary>
-              {items.map((programme) => <article className="programme-item" key={programme.id}>
-                <div><h2>{programme.programme_title}</h2><p>{programme.award} · {programme.level}</p></div>
-                {presentationDemo ? <span className="demo-chip">Example only</span> : <a href={programme.source_url} target="_blank" rel="noreferrer">Official details</a>}
-              </article>)}
-            </details>)}
-          </section>
-          : <div className="empty-state"><h2>{academicProgrammes.length ? "No programmes match" : "No programme records available"}</h2><p>{academicProgrammes.length ? "Try another search or study level." : "Check the Supabase catalogue migration or use the official UCC link above."}</p></div>}
     </main> : !user && (!presentationDemo || demoAuthRequested) ? <main id="main-content" tabIndex={-1} className="auth-layout">
       <section className="auth-story">
         <div className="auth-brand-lockup"><span className="brand-mark">TC</span><span>Trusted course support</span></div>

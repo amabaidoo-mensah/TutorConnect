@@ -1,4 +1,23 @@
-import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { test, expect, type Page } from "@playwright/test";
+
+async function verifyDemoReceiptDownload(page: Page, payer: "Student" | "Tutor", amount: number) {
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator(".demo-receipt").getByRole("button", { name: "Download PDF receipt" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^TC-DEMO-[A-F0-9]{8}\.pdf$/);
+  const path = await download.path();
+  if (!path) throw new Error("The demo receipt PDF did not download.");
+  const contents = await readFile(path, "latin1");
+  expect(contents).toContain("%PDF-1.4");
+  expect(contents).toContain(`Payer: ${payer} demo account`);
+  expect(contents).toContain(`Amount: GHS ${amount.toFixed(2)}`);
+  expect(contents).toContain("Status: Successful \\(simulated\\)");
+  expect(contents).toContain("No real money was charged");
+  const startXref = contents.match(/startxref\n(\d+)/);
+  if (!startXref) throw new Error("The demo receipt PDF has no cross-reference table.");
+  expect(contents.slice(Number(startXref[1])).startsWith("xref\n")).toBe(true);
+}
 
 test("presentation mode shows fictional tutor cards without payment actions and still allows real signup", async ({ page }) => {
   await page.goto("/?demo=1");
@@ -76,6 +95,7 @@ test("student demo can complete a simulated unlock and receive a receipt", async
   await expect(page.getByText("Successful (simulated)").first()).toBeVisible();
   await expect(page.locator(".demo-receipt")).toContainText("Payment method");
   await expect(page.locator(".demo-receipt")).toContainText("Simulated demo");
+  await verifyDemoReceiptDownload(page, "Student", 10);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toBeVisible();
   await expect(page.getByText("Contact unlocked", { exact: true })).toBeVisible();
@@ -90,6 +110,7 @@ test("tutor demo can activate a plan and purchase a resource publishing credit",
 
   await page.getByRole("button", { name: "Choose monthly" }).click();
   await expect(page.getByRole("dialog", { name: "Monthly tutor listing plan" })).toBeVisible();
+  await verifyDemoReceiptDownload(page, "Tutor", 50);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Active", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toBeVisible();
@@ -97,6 +118,7 @@ test("tutor demo can activate a plan and purchase a resource publishing credit",
 
   await page.getByRole("button", { name: "Buy one GHS 50 resource credit" }).click();
   await expect(page.getByRole("dialog", { name: "Tutor resource publishing credit" })).toBeVisible();
+  await verifyDemoReceiptDownload(page, "Tutor", 50);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText(/Unused credits: 1/)).toBeVisible();
 

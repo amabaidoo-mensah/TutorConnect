@@ -88,6 +88,7 @@ type DemoPaymentReceipt = {
   purpose: "contact" | "premium" | "resource";
   amount: number;
   description: string;
+  payer_role: "Student" | "Tutor";
   created_at: string;
 };
 
@@ -1393,6 +1394,7 @@ export default function App() {
       purpose,
       amount,
       description,
+      payer_role: demoRole === "tutor" ? "Tutor" : "Student",
       created_at: new Date().toISOString(),
     };
     setDemoReceipt(receipt);
@@ -1406,24 +1408,73 @@ export default function App() {
   }
 
   function downloadDemoReceipt(receipt: DemoPaymentReceipt) {
-    const text = [
-      "TutorConnect — DEMO PAYMENT RECEIPT",
-      "",
+    const escapePdfText = (value: string) => value.normalize("NFKD")
+      .replace(/[^\x20-\x7e]/g, "?")
+      .replace(/[\\()]/g, "\\$&");
+    const wrapLine = (value: string, width = 78) => {
+      const wrapped: string[] = [];
+      let remaining = value;
+      while (remaining.length > width) {
+        const space = remaining.lastIndexOf(" ", width);
+        const splitAt = space > 0 ? space : width;
+        wrapped.push(remaining.slice(0, splitAt));
+        remaining = remaining.slice(splitAt).trimStart();
+      }
+      wrapped.push(remaining);
+      return wrapped;
+    };
+    const lines = [
+      "TUTORCONNECT",
+      "DEMO PAYMENT RECEIPT",
+      "SIMULATED TRANSACTION - NOT A REAL PAYMENT",
       `Reference: ${receipt.reference}`,
-      `Status: SUCCESSFUL (simulated)`,
+      `Payer: ${receipt.payer_role} demo account`,
       `Purpose: ${receipt.description}`,
       `Amount: GHS ${receipt.amount.toFixed(2)}`,
       "Payment method: Simulated presentation demo",
-      `Date: ${new Date(receipt.created_at).toLocaleString()}`,
-      "",
-      "This is a presentation demo receipt. No real money was charged.",
+      "Status: Successful (simulated)",
+      `Date (UTC): ${receipt.created_at}`,
+      "Record of the simulated TutorConnect presentation flow.",
+      "No real money was charged; this is not proof of a real payment.",
+    ].flatMap((line) => wrapLine(line));
+    let verticalPosition = 748;
+    const content = [
+      "BT",
+      ...lines.map((line, index) => {
+        const fontSize = index === 0 ? 20 : index === 1 ? 14 : index === 2 ? 10 : 11;
+        const command = `/F1 ${fontSize} Tf\n1 0 0 1 54 ${verticalPosition} Tm\n(${escapePdfText(line)}) Tj`;
+        verticalPosition -= index < 2 ? 30 : 22;
+        return command;
+      }),
+      "ET",
     ].join("\n");
-    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+    const objects = [
+      "<< /Type /Catalog /Pages 2 0 R >>",
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+      `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+    ];
+    let pdf = "%PDF-1.4\n";
+    const objectOffsets = [0];
+    objects.forEach((object, index) => {
+      objectOffsets.push(pdf.length);
+      pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    });
+    const crossReferenceOffset = pdf.length;
+    pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+    for (const offset of objectOffsets.slice(1)) {
+      pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+    }
+    pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${crossReferenceOffset}\n%%EOF`;
+    const url = URL.createObjectURL(new Blob([pdf], { type: "application/pdf" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${receipt.reference}.txt`;
+    link.download = `${receipt.reference}.pdf`;
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   }
 
   async function unlockContact(tutorId: string) {
@@ -2480,9 +2531,9 @@ export default function App() {
           <div><dt>Status</dt><dd>Successful (simulated)</dd></div>
           <div><dt>Date</dt><dd>{new Date(demoReceipt.created_at).toLocaleString()}</dd></div>
         </dl>
-        <p className="muted">No real payment was processed. This receipt proves the demo workflow only.</p>
+        <p className="muted">This downloadable receipt records the demo workflow only. No real payment was processed, so it is not proof of a real transaction.</p>
         <div className="demo-receipt-actions">
-          <button className="button button-outline" type="button" onClick={() => downloadDemoReceipt(demoReceipt)}>Download receipt</button>
+          <button className="button button-outline" type="button" onClick={() => downloadDemoReceipt(demoReceipt)}>Download PDF receipt</button>
           <button className="button button-primary" type="button" onClick={() => setDemoReceipt(null)}>Continue</button>
         </div>
       </section>

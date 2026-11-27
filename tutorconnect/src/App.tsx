@@ -2733,9 +2733,6 @@ export default function App() {
         <button className="button button-primary" disabled={busy}>{busy ? "Searching…" : "Search tutors"}</button>
         {(query || unitId !== "") && <button className="button button-outline" type="button" onClick={() => { setQuery(""); setUnitId(""); setResults([]); setResourcesByTutor({}); setHasSearched(false); }}>Clear</button>}
       </form>
-      {institutionId !== "" && institutions.find((item) => item.id === institutionId)?.name === "University of Cape Coast" && <p className="source-note">
-        UCC academic units follow the <a href="https://academics.ucc.edu.gh/colleges" target="_blank" rel="noreferrer">official UCC structure</a>. The <a href="https://admissions.ucc.edu.gh/catalogue/departments" target="_blank" rel="noreferrer">admissions catalogue</a> lists degree programmes, not semester course codes. Administrators add course codes from verified teaching schedules.
-      </p>}
       {user && tutorPresenceError && <p className="presence-error" role="status">Tutor activity status could not be loaded: {tutorPresenceError}</p>}
       {hasSearched && <p className="search-result-count" role="status">{busy ? "Searching for tutors…" : presentationDemo ? `${groupedTutors.length} fictional demo profile${groupedTutors.length === 1 ? "" : "s"} shown` : `${groupedTutors.length} approved tutor${groupedTutors.length === 1 ? "" : "s"} found`}</p>}
       <section className="results-grid" aria-live="polite">
@@ -2938,7 +2935,7 @@ export default function App() {
         <form className="moderation-form" onSubmit={(event) => { if (!window.confirm("Save this review visibility decision?")) event.preventDefault(); else void moderateReview(event, item.id); }}><label>Visibility<select name="status" defaultValue={item.status}><option value="published">Publish</option><option value="hidden">Hide</option></select></label><label>Reason<textarea name="reason" required minLength={4} maxLength={1000} /></label><button className="button button-primary">Save review decision</button></form>
       </article>) : <p className="muted">No reviews submitted.</p>}</section>}
       {adminTab === "courses" && <div className="two-column">
-        <section className="panel"><h2>Add verified course</h2><p className="source-note">Do not enter degree programmes as course units. UCC’s public catalogue lists programmes; use official teaching schedules for actual course codes.</p>
+        <section className="panel"><h2>Add verified course</h2><p className="source-note">Add course units using verified codes and titles from official teaching schedules. Degree programmes are not course units.</p>
           <form className="stack-form" onSubmit={(event) => void createCourse(event)}><label>Institution<select value={institutionId} onChange={(event) => { setInstitutionId(Number(event.target.value)); setUnitId(""); }} required>{institutions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label>Academic unit<select name="academic_unit_id" defaultValue=""><option value="">Unassigned</option>{units.filter((item) => item.unit_type === "department").map((item) => <option key={item.id} value={item.id}>{unitPath(item.id, units)}</option>)}</select></label>
             <label>Course code<input name="code" required maxLength={40} /></label><label>Course title<input name="title" required maxLength={200} /></label><label>Official course-source URL<input name="source_url" type="url" required placeholder="Official course outline or teaching schedule" /></label><button className="button button-primary">Add course</button>

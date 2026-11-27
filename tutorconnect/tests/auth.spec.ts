@@ -12,6 +12,7 @@ test("login and signup modes expose the expected fields", async ({ page }) => {
   await page.getByRole("group", { name: "Account access" }).getByRole("button", { name: "Sign up" }).click();
 
   await expect(page.getByRole("heading", { name: "Create your account" })).toBeVisible();
+  await expect(page.locator(".auth-card .eyebrow")).toHaveCount(0);
   await expect(page.locator('input[name="n"]')).toBeVisible();
   await expect(page.locator('select[name="r"]')).toBeVisible();
 

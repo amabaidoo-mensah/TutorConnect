@@ -1716,7 +1716,7 @@ export default function App() {
       </section>
       <section className={`auth-card ${authMode === "login" ? "auth-card-login" : ""}`} aria-labelledby="auth-heading">
         <div className="auth-logo" aria-hidden="true"><img className="brand-mark" src="/tutorconnect-mark.svg" alt="" /></div>
-        <p className="eyebrow">{authMode === "login" ? "ACCOUNT ACCESS" : authMode === "signup" ? "CREATE ACCOUNT" : "PASSWORD RECOVERY"}</p>
+        {authMode !== "signup" && <p className="eyebrow">{authMode === "login" ? "ACCOUNT ACCESS" : "PASSWORD RECOVERY"}</p>}
         <h2 id="auth-heading">{authMode === "login" ? "Welcome back" : authMode === "signup" ? "Create your account" : "Reset your password"}</h2>
         <p className="auth-card-lead">{authMode === "login" ? "Sign in to continue." : authMode === "signup" ? "Join as a student or apply as a tutor." : "Enter your email and we’ll send you a secure reset link."}</p>
         {authMode !== "forgot" && authMode !== "update" && <div className="auth-switch" role="group" aria-label="Account access">

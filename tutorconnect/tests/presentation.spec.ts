@@ -105,16 +105,15 @@ test("student demo can complete a simulated unlock and receive a receipt", async
 test("tutor demo can activate a plan and purchase a resource publishing credit", async ({ page }) => {
   await page.goto("/?demo=1&role=tutor");
   await expect(page.getByRole("heading", { name: /Your teaching dashboard/ })).toBeVisible();
-  await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toHaveCount(0);
   await expect(page.getByRole("img", { name: "TutorConnect verified tutor" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Choose monthly" }).click();
   await expect(page.getByRole("dialog", { name: "Monthly tutor listing plan" })).toBeVisible();
   await verifyDemoReceiptDownload(page, "Tutor", 50);
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Active", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("img", { name: "TutorConnect verified member" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "TutorConnect verified tutor" })).toBeVisible();
+  await expect(page.locator(".stat-card").filter({ hasText: "Verified plan" })).toContainText("Active");
+  await expect(page.locator(".page-heading").getByRole("img", { name: "TutorConnect verified tutor" })).toBeVisible();
+  await expect(page.locator(".stat-card").filter({ hasText: "Profile status" }).getByRole("img", { name: "TutorConnect verified tutor" })).toBeVisible();
 
   await page.getByRole("button", { name: "Buy one GHS 50 resource credit" }).click();
   await expect(page.getByRole("dialog", { name: "Tutor resource publishing credit" })).toBeVisible();
@@ -174,6 +173,8 @@ test("tutor demo can activate a plan and purchase a resource publishing credit",
   await page.getByLabel("Course code or title").fill("CS101");
   await page.getByRole("button", { name: "Search tutors" }).click();
   await expect(page.getByRole("link", { name: "Demo teaching video" })).toBeVisible();
+  const demoTutorCard = page.locator(".tutor-card").filter({ hasText: "Tutor Ama" });
+  await expect(demoTutorCard.getByRole("img", { name: "TutorConnect verified tutor" })).toBeVisible();
 });
 
 test("tutor resource batches allow at most five items", async ({ page }) => {

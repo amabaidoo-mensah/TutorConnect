@@ -109,6 +109,14 @@ function ContactLinks({ contact }: { contact: ContactDetails }) {
 function optionalFormValue(values: FormData, name: string) {
   return String(values.get(name) || "").trim() || null;
 }
+function readDemoTutorPremiumUntil() {
+  try {
+    const premiumUntil = localStorage.getItem("tutorconnect-demo-tutor-premium-until");
+    return premiumUntil && Date.parse(premiumUntil) > Date.now() ? premiumUntil : null;
+  } catch {
+    return null;
+  }
+}
 function readDemoResources(): TutorResource[] {
   try {
     const stored: unknown = JSON.parse(localStorage.getItem("tutorconnect-demo-resources") || "[]");
@@ -621,7 +629,12 @@ export default function App() {
   const [units, setUnits] = useState<AcademicUnit[]>(presentationDemo ? presentationUnits : []);
   const [unitId, setUnitId] = useState<number | "">("");
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchTutor[]>(presentationDemo ? presentationTutors : []);
+  const [results, setResults] = useState<SearchTutor[]>(() => presentationDemo
+    ? presentationTutors.map((tutor) => ({
+      ...tutor,
+      featured: tutor.id === "demo-tutor-computing" && isTutorVerificationActive("approved", readDemoTutorPremiumUntil()),
+    }))
+    : []);
   const [contacts, setContacts] = useState<Record<string, Contact>>({});
   const [studentReviews, setStudentReviews] = useState<Review[]>([]);
   const [studentReports, setStudentReports] = useState<Report[]>([]);
@@ -808,6 +821,7 @@ export default function App() {
     if (!presentationDemo || (demoRole !== "student" && demoRole !== "tutor")) return;
     const role: Role = demoRole;
     const id = role === "tutor" ? "demo-tutor-computing" : "demo-student";
+    const premiumUntil = role === "tutor" ? readDemoTutorPremiumUntil() : null;
     setUser({ id, email: role === "tutor" ? "tutor.demo@example.com" : "student.demo@example.com" });
     setProfile({
       id,
@@ -816,7 +830,7 @@ export default function App() {
       bio: role === "tutor" ? "Fictional tutor approved for the presentation demo." : "Fictional student account for the presentation demo.",
       avatar_path: null,
       avatar_url: null,
-      is_verified: false,
+      is_verified: role === "tutor" && isTutorVerificationActive("approved", premiumUntil),
       phone: role === "student" ? "+233 20 000 0001" : null,
       contact_email: role === "student" ? "student.demo@example.com" : null,
       whatsapp_url: null,
@@ -835,7 +849,7 @@ export default function App() {
         delivery: "Online",
         availability: "Weekdays",
         status: "approved",
-        premium_until: null,
+        premium_until: premiumUntil,
         views: 0,
       });
       setTutorContact({
@@ -1288,10 +1302,16 @@ export default function App() {
     if (presentationDemo) {
       const search = query.trim().toLowerCase();
       const selectedUnit = unitId === "" ? "" : unitPath(unitId, presentationUnits);
-      const matchingTutors = presentationTutors.filter((tutor) =>
-        (!search || `${tutor.course_code} ${tutor.name} ${tutor.department}`.toLowerCase().includes(search))
-        && (!selectedUnit || unitPath(tutor.department_id, presentationUnits).startsWith(selectedUnit)),
-      );
+      const demoPremiumActive = isTutorVerificationActive("approved", readDemoTutorPremiumUntil());
+      const matchingTutors = presentationTutors
+        .filter((tutor) =>
+          (!search || `${tutor.course_code} ${tutor.name} ${tutor.department}`.toLowerCase().includes(search))
+          && (!selectedUnit || unitPath(tutor.department_id, presentationUnits).startsWith(selectedUnit)),
+        )
+        .map((tutor) => ({
+          ...tutor,
+          featured: tutor.id === "demo-tutor-computing" && demoPremiumActive,
+        }));
       setResults(matchingTutors);
       setContacts({});
       const demoResources = [
@@ -1527,13 +1547,23 @@ export default function App() {
       const days = plan === "monthly" ? 30 : 120;
       const expiry = new Date();
       expiry.setDate(expiry.getDate() + days);
+      const premiumUntil = expiry.toISOString();
+      let savedForDemo = true;
+      try {
+        localStorage.setItem("tutorconnect-demo-tutor-premium-until", premiumUntil);
+      } catch {
+        savedForDemo = false;
+      }
       setTutorProfile((current) => current ? {
         ...current,
-        premium_until: expiry.toISOString(),
+        premium_until: premiumUntil,
       } : current);
       setProfile((current) => current ? { ...current, is_verified: true } : current);
+      setResults((current) => current.map((tutor) => tutor.id === "demo-tutor-computing" ? { ...tutor, featured: true } : tutor));
       createDemoReceipt("premium", amount, `${plan === "monthly" ? "Monthly" : "Semester"} tutor listing plan`);
-      setNotice("Demo payment successful. Your tutor listing mark is now active.");
+      setNotice(savedForDemo
+        ? "Demo payment successful. Your tutor listing mark is now active."
+        : "Demo payment successful. Your tutor listing mark is active for this session, but could not be saved for later demo visits.");
       return;
     }
     if (!supabase || !user || profile?.role !== "tutor") {
@@ -2501,7 +2531,7 @@ export default function App() {
         </>}
         {profile?.role === "tutor" && <button className="nav-link active" aria-current={section === "tutor" ? "page" : undefined} onClick={() => navigate("tutor")}>Tutor dashboard</button>}
         {profile?.role === "admin" && <button className="nav-link active" aria-current={section === "admin" ? "page" : undefined} onClick={() => navigate("admin")}>Moderation</button>}
-        {profile && <button className={section === "profile" ? "nav-link active" : "nav-link"} aria-current={section === "profile" ? "page" : undefined} onClick={() => navigate("profile")}>My profile{profile.is_verified && <VerifiedBadge label="TutorConnect verified member" />}</button>}
+        {profile && <button className={section === "profile" ? "nav-link active" : "nav-link"} aria-current={section === "profile" ? "page" : undefined} onClick={() => navigate("profile")}>My profile{profile.is_verified && <VerifiedBadge label={profile.role === "tutor" ? "TutorConnect verified tutor" : "TutorConnect verified member"} />}</button>}
         {user ? <button className="button button-outline" onClick={() => void signOut()}>Log out</button> : <button className="button button-outline" onClick={() => { setAuthMode("login"); setDemoAuthRequested(true); navigate("discover"); }}>Log in</button>}
       </nav>
     </header>
@@ -2667,7 +2697,7 @@ export default function App() {
       <p>{profileLoading ? "Your sign-in is active. We’re loading your TutorConnect profile." : profileLoadError || "Your sign-in is active, but the profile has not loaded."}</p>
       {!profileLoading && <button className="button button-primary" type="button" onClick={() => user && void loadProfile(user.id)}>Retry profile loading</button>}
     </section></main> : profile && section === "profile" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">YOUR ACCOUNT</p><h1>My profile{profile.is_verified && <VerifiedBadge label="TutorConnect verified member" />}</h1><p className="muted">Add a short bio and photo. Student contact details are private; tutor contact links are shown only after a student unlocks them.</p>
+      <section className="page-heading"><p className="eyebrow">YOUR ACCOUNT</p><h1>My profile{profile.is_verified && <VerifiedBadge label={profile.role === "tutor" ? "TutorConnect verified tutor" : "TutorConnect verified member"} />}</h1><p className="muted">Add a short bio and photo. Student contact details are private; tutor contact links are shown only after a student unlocks them.</p>
         <PresenceIndicator status={myPresenceStatus} text="Your status" />
         {myPresenceError && <p className="presence-error" role="status">Live status unavailable: {myPresenceError}</p>}
         {profile.is_verified && <p className="verified-profile-note">Your account is verified based on active account status and confirmed payment.</p>}
@@ -2776,26 +2806,26 @@ export default function App() {
         <section className="panel"><h2>My reports</h2>{studentReports.length ? studentReports.map((item) => <article className="list-item" key={item.id}><div className="row-between"><b>{item.category}</b><span className={`status ${item.status}`}>{item.status}</span></div><p>{item.description}</p>{item.resolution && <p className="resolution">Outcome: {item.resolution}</p>}<small>{dateLabel(item.created_at)}</small></article>) : <p className="muted">You have no reports.</p>}</section>
       </div>
     </main> : profile?.role === "tutor" && section === "tutor" ? <main id="main-content" tabIndex={-1} className="page">
-      <section className="page-heading"><p className="eyebrow">TUTOR WORKSPACE</p><h1>Your teaching dashboard{tutorVerified && <span className="verified-mark verified-mark-large" role="img" aria-label="TutorConnect verified tutor" title="Approved tutor with an active, Paystack-verified plan"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg></span>}</h1><p className="muted">Manage your profile, course requests, visibility and student feedback.</p>
+      <section className="page-heading"><p className="eyebrow">TUTOR WORKSPACE</p><h1>Your teaching dashboard{tutorVerified && <span className="verified-mark verified-mark-large" role="img" aria-label="TutorConnect verified tutor" title={presentationDemo ? "Approved demo tutor with an active simulated plan" : "Approved tutor with an active, Paystack-verified plan"}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="m3.3 8.2 3 3 6.4-6.5" /></svg></span>}</h1><p className="muted">Manage your profile, course requests, visibility and student feedback.</p>
         <PresenceIndicator status={myPresenceStatus} text="Your status" />
         {myPresenceError && <p className="presence-error" role="status">Live status unavailable: {myPresenceError}</p>}
       </section>
       <div className="stats-grid">
-        <div className="stat-card"><span>Profile status</span><b className={`status ${tutorProfile?.status || "pending"}`}>{tutorProfile?.status || "Loading"}</b></div>
+        <div className="stat-card"><span>Profile status</span><b className={`status ${tutorProfile?.status || "pending"}`}>{tutorProfile?.status || "Loading"}{tutorVerified && <VerifiedBadge label="TutorConnect verified tutor" />}</b></div>
         <div className="stat-card"><span>Verified plan</span><b>{tutorVerified ? "Active" : "Not active"}</b></div>
         <div className="stat-card"><span>Contact unlocks</span><b>{tutorStats?.contact_unlocks ?? 0}</b></div>
         <div className="stat-card"><span>Average rating</span><b>{tutorStats?.average_rating?.toFixed(1) ?? "—"}</b></div>
       </div>
       <section className="panel premium-panel">
         <div className="row-between"><div><p className="eyebrow">TUTOR VISIBILITY</p><h2>Verified tutor mark</h2></div>{tutorVerified && <span className="premium-active-label">Active</span>}</div>
-        <p className="muted">The blue mark appears on your tutor profile only when an administrator has approved your account and Paystack has verified an active paid plan.</p>
+        <p className="muted">The blue mark appears on your tutor profile only when an administrator has approved your account and {presentationDemo ? "your simulated demo plan is active." : "Paystack has verified an active paid plan."}</p>
         {!tutorProfile ? <p className="muted" role="status">Loading your tutor profile…</p> : tutorProfile.status !== "approved" ? <p className="setup-note">Your tutor profile must be approved before you can activate a paid listing. Contact support if you need help with your application.</p> : <>
           {tutorVerified && tutorProfile.premium_until && <p className="premium-expiry">Your plan is active through <strong>{dateLabel(tutorProfile.premium_until)}</strong>. Renewing extends it from its current expiry date.</p>}
           <div className="plan-options">
             <article className="plan-card"><p className="eyebrow">MONTHLY</p><h3>GHS 50</h3><p className="muted">30 days of premium visibility</p><button className="button button-outline" type="button" disabled={busy} onClick={() => void startPremiumCheckout("monthly")}>{busy ? "Opening secure checkout…" : tutorVerified ? "Extend monthly plan" : "Choose monthly"}</button></article>
             <article className="plan-card"><p className="eyebrow">SEMESTER</p><h3>GHS 200</h3><p className="muted">120 days of premium visibility</p><button className="button button-primary" type="button" disabled={busy} onClick={() => void startPremiumCheckout("semester")}>{busy ? "Opening secure checkout…" : tutorVerified ? "Extend semester plan" : "Choose semester"}</button></article>
           </div>
-          <small className="muted">Checkout opens on Paystack. The plan and badge activate only after the server verifies the payment.</small>
+          <small className="muted">{presentationDemo ? "The simulated plan and badge are for presentation only and do not update a live payment account." : "Checkout opens on Paystack. The plan and badge activate only after the server verifies the payment."}</small>
         </>}
       </section>
       <div className="two-column">
